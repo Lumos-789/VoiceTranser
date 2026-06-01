@@ -1,0 +1,22 @@
+[project]
+name = "voicetranser"
+version = "0.1.0"
+description = "Voice input → AI-refined prompt → auto-paste to Claude Code"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "sounddevice>=0.5",
+    "numpy>=1.26",
+    "faster-whisper>=1.1",
+    "anthropic>=0.45",
+    "pynput>=1.7",
+    "pyperclip>=1.9",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+voicetranser = "voicetranser.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
