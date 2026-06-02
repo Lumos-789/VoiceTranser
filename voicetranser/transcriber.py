@@ -1,36 +1,28 @@
-"""Speech-to-text transcription via local faster-whisper (CTranslate2)."""
+"""Speech-to-text transcription via mlx-whisper (Apple Silicon optimized)."""
 
 from __future__ import annotations
 
-import io
+import os
 import sys
+import tempfile
 
-from faster_whisper import WhisperModel
+# Ensure HF mirror is set before importing mlx_whisper
+if not os.environ.get("HF_ENDPOINT"):
+    os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
-# Singleton — model is loaded once, reused across calls
-_model: WhisperModel | None = None
+import mlx_whisper
 
-_MODEL_SIZES = {
-    "tiny": "~75MB",
-    "base": "~145MB",
-    "small": "~488MB",
-    "medium": "~1.5GB",
-    "large-v3": "~3GB",
-}
+# Singleton — model repo is resolved once, reused across calls
+_model_repo: str | None = None
 
 
-def _get_model(model_size: str = "small") -> WhisperModel:
-    global _model
-    if _model is None:
-        size_est = _MODEL_SIZES.get(model_size, "unknown")
-        sys.stderr.write(f"[Downloading Whisper model '{model_size}' ({size_est})... first run only]\n")
-        _model = WhisperModel(
-            model_size,
-            device="cpu",
-            compute_type="int8",
-        )
+def _get_model_repo(model_size: str = "large-v3") -> str:
+    global _model_repo
+    if _model_repo is None:
+        sys.stderr.write(f"[Loading Whisper model '{model_size}' via mlx-whisper...]\n")
+        _model_repo = f"mlx-community/whisper-{model_size}"
         sys.stderr.write("[Whisper model ready]\n")
-    return _model
+    return _model_repo
 
 
 def transcribe(
@@ -38,18 +30,22 @@ def transcribe(
     language: str = "zh",
     model_size: str = "large-v3",
 ) -> str:
-    """Transcribe WAV audio bytes to text using local faster-whisper.
+    """Transcribe WAV audio bytes to text using mlx-whisper.
 
     Returns the raw transcript string. Empty string if nothing detected.
     """
-    model = _get_model(model_size)
+    model_repo = _get_model_repo(model_size)
 
-    segments, info = model.transcribe(
-        io.BytesIO(audio_data),
-        language=language,
-        beam_size=5,
-        vad_filter=True,
-    )
+    # mlx-whisper needs a file path — write to a temp file
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
+        tmp.write(audio_data)
+        tmp.flush()
+        result = mlx_whisper.transcribe(
+            tmp.name,
+            path_or_hf_repo=model_repo,
+            language=language,
+            word_timestamps=False,
+        )
 
-    text = " ".join(segment.text.strip() for segment in segments)
-    return text.strip()
+    text = result.get("text", "").strip()
+    return text

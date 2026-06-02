@@ -13,7 +13,7 @@ def _paste_via_menu() -> bool:
         [
             "osascript",
             "-e",
-            'delay 0.1',
+            'delay 0.02',
             "-e",
             'tell application "System Events" to tell process (name of first application process whose frontmost is true) to click menu item "Paste" of menu "Edit" of menu bar 1',
         ],
@@ -28,7 +28,7 @@ def _paste_via_keystroke() -> None:
         [
             "osascript",
             "-e",
-            'delay 0.1',
+            'delay 0.02',
             "-e",
             'tell application "System Events" to keystroke "v" using command down',
         ],

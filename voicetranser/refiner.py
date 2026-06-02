@@ -9,6 +9,16 @@ from anthropic import Anthropic
 # Skip refinement if transcript is already concise
 _MIN_LENGTH_FOR_REFINE = 50
 
+# Singleton — reuse client to keep TCP/HTTP2 connections alive
+_client: Anthropic | None = None
+
+
+def _get_client(api_key: str, base_url: str) -> Anthropic:
+    global _client
+    if _client is None:
+        _client = Anthropic(api_key=api_key, base_url=base_url)
+    return _client
+
 
 def refine(
     transcript: str,
@@ -33,7 +43,7 @@ def refine(
 
         system_prompt = (_PROMPTS_DIR / "refine_system.txt").read_text(encoding="utf-8").strip()
 
-    client = Anthropic(api_key=api_key, base_url=base_url)
+    client = _get_client(api_key, base_url)
 
     try:
         response = client.messages.create(
