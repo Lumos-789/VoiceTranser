@@ -6,7 +6,7 @@ import os
 import sys
 import tempfile
 
-# Ensure HF mirror is set before importing mlx_whisper
+# HF mirror for China network
 if not os.environ.get("HF_ENDPOINT"):
     os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
@@ -20,7 +20,7 @@ def _get_model_repo(model_size: str = "large-v3") -> str:
     global _model_repo
     if _model_repo is None:
         sys.stderr.write(f"[Loading Whisper model '{model_size}' via mlx-whisper...]\n")
-        _model_repo = f"mlx-community/whisper-{model_size}"
+        _model_repo = f"mlx-community/whisper-{model_size}-mlx"
         sys.stderr.write("[Whisper model ready]\n")
     return _model_repo
 
