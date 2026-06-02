@@ -18,8 +18,8 @@ class Config:
     minimax_base_url: str = "https://api.minimaxi.com/anthropic"
     minimax_model: str = "MiniMax-M3"
     # Local Whisper (STT)
-    whisper_model: str = "large-v3"
-    hf_endpoint: str = "https://hf-mirror.com"
+    whisper_model: str = "small"
+    hf_endpoint: str = "https://huggingface.co"
     # Audio & hotkey
     hotkey: str = "cmd_r"
     sample_rate: int = 16000
@@ -43,7 +43,7 @@ def load_config(dotenv_path: Path | None = None) -> Config:
         load_dotenv(dotenv_path)
 
     # Set HuggingFace mirror for China network
-    hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
+    hf_endpoint = os.getenv("HF_ENDPOINT", "https://huggingface.co")
     os.environ["HF_ENDPOINT"] = hf_endpoint
 
     minimax_key = os.getenv("MINIMAX_API_KEY", "")

@@ -3,23 +3,27 @@
 from __future__ import annotations
 
 import io
-import os
 import sys
-
-# Ensure HF mirror is set before importing faster_whisper
-if not os.environ.get("HF_ENDPOINT"):
-    os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 from faster_whisper import WhisperModel
 
 # Singleton — model is loaded once, reused across calls
 _model: WhisperModel | None = None
 
+_MODEL_SIZES = {
+    "tiny": "~75MB",
+    "base": "~145MB",
+    "small": "~488MB",
+    "medium": "~1.5GB",
+    "large-v3": "~3GB",
+}
 
-def _get_model(model_size: str = "large-v3") -> WhisperModel:
+
+def _get_model(model_size: str = "small") -> WhisperModel:
     global _model
     if _model is None:
-        sys.stderr.write(f"[Loading Whisper model '{model_size}'...]\n")
+        size_est = _MODEL_SIZES.get(model_size, "unknown")
+        sys.stderr.write(f"[Downloading Whisper model '{model_size}' ({size_est})... first run only]\n")
         _model = WhisperModel(
             model_size,
             device="cpu",

@@ -139,6 +139,29 @@ def run_daemon(config: Config) -> None:
     listener.start()
 
 
+def _preflight() -> None:
+    """Check common setup issues before starting daemon mode."""
+    from voicetranser.config import load_config as _load
+
+    dotenv_path = Path(__file__).resolve().parent.parent / ".env"
+    if not dotenv_path.exists():
+        sys.stderr.write(
+            "[!] .env file not found. Run: cp .env.example .env\n"
+            "    Then edit .env and fill in MINIMAX_API_KEY.\n"
+        )
+        sys.exit(1)
+
+    # load_config will SystemExit if key is missing — catch and give friendly message
+    try:
+        _load()
+    except SystemExit:
+        sys.stderr.write(
+            "[!] MINIMAX_API_KEY is not set. Edit .env and add your key:\n"
+            "    MINIMAX_API_KEY=sk-xxx\n"
+        )
+        sys.exit(1)
+
+
 def show_config(config: Config) -> None:
     """Print current configuration."""
     print("VoiceTranser Configuration:")
@@ -163,6 +186,10 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config()
+
+    # Preflight checks for daemon mode
+    if not args.config and not args.file:
+        _preflight()
 
     if args.config:
         show_config(cfg)
