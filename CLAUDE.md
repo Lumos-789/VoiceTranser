@@ -23,11 +23,12 @@ Global Hotkey (hold) → Recorder (sounddevice) → Transcriber (local faster-wh
 | `voicetranser/config.py` | 配置管理，从 .env/环境变量加载 |
 | `voicetranser/recorder.py` | 音频录制，sounddevice 流式采集 → WAV |
 | `voicetranser/transcriber.py` | STT，本地 faster-whisper (CTranslate2) |
-| `voicetranser/refiner.py` | Prompt 精炼，MiniMax-M3 |
-| `voicetranser/hotkey.py` | 全局热键监听，pynput |
-| `voicetranser/output.py` | 剪贴板写入 + 自动粘贴 |
-| `voicetranser/__main__.py` | CLI 入口 |
-| `voicetranser/prompts/refine_system.txt` | 精炼 system prompt |
+| `voicetranser/refiner.py` | Prompt 精炼，MiniMax-M2.7-highspeed |
+| `voicetranser/hotkey.py` | 全局热键监听，pynput（支持 pause/resume） |
+| `voicetranser/output.py` | 剪贴板写入 + 自动粘贴（菜单点击优先，keystroke fallback） |
+| `voicetranser/status.py` | macOS 系统通知反馈 |
+| `voicetranser/__main__.py` | CLI 入口（守护模式用 worker 线程隔离） |
+| `voicetranser/prompts/refine_system.txt` | 精炼 system prompt（智能分级策略） |
 
 ## 配置
 

@@ -4,18 +4,33 @@ from __future__ import annotations
 
 import argparse
 import sys
+import threading
+import time
 from pathlib import Path
 
 from voicetranser.config import Config, load_config
 from voicetranser.output import output
 from voicetranser.recorder import Recorder
 from voicetranser.refiner import refine
+from voicetranser.status import StatusDisplay
 from voicetranser.transcriber import transcribe
 
 
-def process_audio(audio_data: bytes, config: Config, *, auto_paste: bool = True) -> str:
+def process_audio(
+    audio_data: bytes,
+    config: Config,
+    *,
+    auto_paste: bool = True,
+    status: StatusDisplay | None = None,
+) -> str:
     """Full pipeline: audio bytes → transcript → refined prompt → output."""
-    sys.stderr.write("[Transcribing...]\n")
+    use_status = status is not None
+
+    if use_status:
+        status.transcribing()
+    else:
+        sys.stderr.write("[Transcribing...]\n")
+
     transcript = transcribe(
         audio_data,
         language=config.language,
@@ -23,11 +38,18 @@ def process_audio(audio_data: bytes, config: Config, *, auto_paste: bool = True)
     )
 
     if not transcript:
+        if use_status:
+            status.clear()
         sys.stderr.write("[No speech detected]\n")
         return ""
 
-    sys.stderr.write(f"[Transcript] {transcript}\n")
-    sys.stderr.write("[Refining...]\n")
+    if not use_status:
+        sys.stderr.write(f"[Transcript] {transcript}\n")
+
+    if use_status:
+        status.refining()
+    else:
+        sys.stderr.write("[Refining...]\n")
 
     refined = refine(
         transcript,
@@ -37,8 +59,13 @@ def process_audio(audio_data: bytes, config: Config, *, auto_paste: bool = True)
         system_prompt=config.refine_system_prompt_text,
     )
 
-    sys.stderr.write(f"[Refined] {refined}\n")
     output(refined, auto_paste=auto_paste)
+
+    if use_status:
+        status.done()
+    else:
+        sys.stderr.write(f"[Refined] {refined}\n")
+
     return refined
 
 
@@ -77,16 +104,36 @@ def run_daemon(config: Config) -> None:
     from voicetranser.hotkey import HotkeyListener
 
     recorder = Recorder(sample_rate=config.sample_rate)
+    status = StatusDisplay()
+    listener: HotkeyListener | None = None  # set after creation
 
     def on_press() -> None:
         recorder.start()
+        status.recording()
 
     def on_release() -> None:
         audio_data = recorder.stop()
         if audio_data is None:
+            status.clear()
             sys.stderr.write("[Recording too short]\n")
             return
-        process_audio(audio_data, config, auto_paste=True)
+        # Offload to a worker thread so we can safely stop the pynput
+        # listener (you cannot stop a listener from its own callback thread).
+        # Stopping the listener before pasting prevents pynput's CGEventTap
+        # from capturing the simulated Cmd+V and causing a double-paste.
+        threading.Thread(
+            target=_worker,
+            args=(audio_data,),
+            daemon=True,
+        ).start()
+
+    def _worker(audio_data: bytes) -> None:
+        assert listener is not None
+        listener.pause()
+        try:
+            process_audio(audio_data, config, auto_paste=True, status=status)
+        finally:
+            listener.resume()
 
     listener = HotkeyListener(config.hotkey, on_press, on_release)
     listener.start()

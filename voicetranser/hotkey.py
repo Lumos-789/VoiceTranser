@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import sys
 
 from pynput import keyboard
@@ -53,11 +54,43 @@ class HotkeyListener:
         self._on_press = on_press
         self._on_release = on_release
         self._held = False
+        self._listener: keyboard.Listener | None = None
+        self._paused = False
+        self._new_listener = threading.Event()
+
+    def pause(self) -> None:
+        """Temporarily stop listening (safe to call from any thread)."""
+        self._paused = True
+        if self._listener is not None:
+            self._listener.stop()
+
+    def resume(self) -> None:
+        """Resume listening after a pause."""
+        self._paused = False
+        self._start_listener()
+        self._new_listener.set()
 
     def start(self) -> None:
-        """Start listening (blocks the current thread)."""
-        sys.stderr.write(f"[VoiceTranser] Listening on hotkey (press & hold to speak, release to process)\n")
+        """Start listening (blocks the current thread).
 
+        Survives pause/resume cycles: when pause() stops the listener,
+        the current join() returns.  We then wait for resume() to create
+        a new listener before looping back to join it.
+        """
+        sys.stderr.write(f"[VoiceTranser] Listening on hotkey (press & hold to speak, release to process)\n")
+        self._start_listener()
+        while True:
+            listener = self._listener
+            if listener is not None:
+                listener.join()
+            if not self._paused:
+                break
+            # Paused — wait for resume() to create a new listener.
+            self._new_listener.wait()
+            self._new_listener.clear()
+
+    def _start_listener(self) -> None:
+        """Create and start a new pynput Listener."""
         def on_press(key: keyboard.Key | keyboard.KeyCode | None) -> None:
             if key == self._target_key and not self._held:
                 self._held = True
@@ -70,5 +103,5 @@ class HotkeyListener:
                 if self._on_release:
                     self._on_release()
 
-        with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
-            listener.join()
+        self._listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+        self._listener.start()

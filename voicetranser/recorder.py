@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import sys
-import threading
 import wave
 
 import numpy as np
@@ -38,7 +37,6 @@ class Recorder:
             callback=self._audio_callback,
         )
         self._stream.start()
-        sys.stderr.write("\r[● Recording...]\r")
 
     def stop(self) -> bytes | None:
         """Stop recording and return WAV bytes. Returns None if too short (<0.5s)."""
@@ -49,7 +47,6 @@ class Recorder:
             self._stream.stop()
             self._stream.close()
             self._stream = None
-        sys.stderr.write("\r" + " " * 20 + "\r")
 
         if not self._frames:
             return None
