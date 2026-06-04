@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import threading
 import sys
+import threading
+import traceback
 
 from pynput import keyboard
 
@@ -73,16 +74,20 @@ class HotkeyListener:
     def start(self) -> None:
         """Start listening (blocks the current thread).
 
-        Survives pause/resume cycles: when pause() stops the listener,
-        the current join() returns.  We then wait for resume() to create
-        a new listener before looping back to join it.
+        Survives pause/resume cycles and listener crashes:
+        if the listener dies unexpectedly (not from pause), it is recreated.
         """
-        sys.stderr.write(f"[VoiceTranser] Listening on hotkey (press & hold to speak, release to process)\n")
+        sys.stderr.write("[VoiceTranser] Listening on hotkey (press & hold to speak, release to process)\n")
         self._start_listener()
         while True:
             listener = self._listener
             if listener is not None:
                 listener.join()
+                # If listener died and we weren't paused, recreate it
+                if not self._paused:
+                    sys.stderr.write("[VoiceTranser] Listener died unexpectedly, restarting...\n")
+                    self._start_listener()
+                    continue
             if not self._paused:
                 break
             # Paused — wait for resume() to create a new listener.
@@ -90,18 +95,24 @@ class HotkeyListener:
             self._new_listener.clear()
 
     def _start_listener(self) -> None:
-        """Create and start a new pynput Listener."""
+        """Create and start a new pynput Listener with error protection."""
         def on_press(key: keyboard.Key | keyboard.KeyCode | None) -> None:
             if key == self._target_key and not self._held:
                 self._held = True
                 if self._on_press:
-                    self._on_press()
+                    try:
+                        self._on_press()
+                    except Exception:
+                        sys.stderr.write(f"[Hotkey on_press error]\n{traceback.format_exc()}")
 
         def on_release(key: keyboard.Key | keyboard.KeyCode | None) -> None:
             if key == self._target_key and self._held:
                 self._held = False
                 if self._on_release:
-                    self._on_release()
+                    try:
+                        self._on_release()
+                    except Exception:
+                        sys.stderr.write(f"[Hotkey on_release error]\n{traceback.format_exc()}")
 
         self._listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         self._listener.start()

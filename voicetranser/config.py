@@ -16,12 +16,13 @@ class Config:
     # MiniMax (prompt refinement)
     minimax_api_key: str
     minimax_base_url: str = "https://api.minimaxi.com/anthropic"
-    minimax_model: str = "MiniMax-M3"
+    minimax_model: str = "MiniMax-M2.7-highspeed"
     # Local Whisper (STT)
     whisper_model: str = "small"
     hf_endpoint: str = "https://huggingface.co"
-    # Audio & hotkey
-    hotkey: str = "cmd_r"
+    # Audio & server
+    hotkey: str = "cmd_r"  # legacy, unused in HTTP mode
+    server_port: int = 9876
     sample_rate: int = 16000
     language: str = "zh"
     # System prompt
@@ -54,10 +55,11 @@ def load_config(dotenv_path: Path | None = None) -> Config:
     return Config(
         minimax_api_key=minimax_key,
         minimax_base_url=os.getenv("MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic"),
-        minimax_model=os.getenv("MINIMAX_MODEL", "MiniMax-M3"),
+        minimax_model=os.getenv("MINIMAX_MODEL", "MiniMax-M2.7-highspeed"),
         whisper_model=os.getenv("WHISPER_MODEL", "large-v3"),
         hf_endpoint=hf_endpoint,
         hotkey=os.getenv("HOTKEY", "cmd_r"),
+        server_port=int(os.getenv("SERVER_PORT", "9876")),
         sample_rate=int(os.getenv("SAMPLE_RATE", "16000")),
         language=os.getenv("LANGUAGE", "zh"),
     )

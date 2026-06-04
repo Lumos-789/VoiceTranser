@@ -1,4 +1,4 @@
-"""Prompt refinement — transforms verbose speech transcript into structured prompt via MiniMax-M3."""
+"""Prompt refinement — transforms verbose speech transcript into structured prompt via MiniMax."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def refine(
     transcript: str,
     api_key: str,
     base_url: str = "https://api.minimaxi.com/anthropic",
-    model: str = "MiniMax-M3",
+    model: str = "MiniMax-M2.7-highspeed",
     system_prompt: str = "",
 ) -> str:
     """Refine a verbose speech transcript into a structured prompt.
@@ -54,7 +54,7 @@ def refine(
                 {"role": "user", "content": transcript},
             ],
         )
-        # MiniMax-M3 may return ThinkingBlock + TextBlock, only extract text
+        # MiniMax may return ThinkingBlock + TextBlock, only extract text
         for block in response.content:
             if block.type == "text":
                 result = block.text.strip()

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import threading
-import time
 from pathlib import Path
 
 from voicetranser.config import Config, load_config
@@ -100,43 +98,18 @@ def run_file(file_path: str, config: Config, *, auto_paste: bool = False) -> Non
 
 
 def run_daemon(config: Config) -> None:
-    """Run in daemon mode with global hotkey listener."""
-    from voicetranser.hotkey import HotkeyListener
+    """Run in daemon mode with HTTP toggle server."""
+    from voicetranser.server import VoiceServer
 
     recorder = Recorder(sample_rate=config.sample_rate)
     status = StatusDisplay()
-    listener: HotkeyListener | None = None  # set after creation
-
-    def on_press() -> None:
-        recorder.start()
-        status.recording()
-
-    def on_release() -> None:
-        audio_data = recorder.stop()
-        if audio_data is None:
-            status.clear()
-            sys.stderr.write("[Recording too short]\n")
-            return
-        # Offload to a worker thread so we can safely stop the pynput
-        # listener (you cannot stop a listener from its own callback thread).
-        # Stopping the listener before pasting prevents pynput's CGEventTap
-        # from capturing the simulated Cmd+V and causing a double-paste.
-        threading.Thread(
-            target=_worker,
-            args=(audio_data,),
-            daemon=True,
-        ).start()
-
-    def _worker(audio_data: bytes) -> None:
-        assert listener is not None
-        listener.pause()
-        try:
-            process_audio(audio_data, config, auto_paste=True, status=status)
-        finally:
-            listener.resume()
-
-    listener = HotkeyListener(config.hotkey, on_press, on_release)
-    listener.start()
+    server = VoiceServer(
+        config=config,
+        recorder=recorder,
+        status=status,
+        port=config.server_port,
+    )
+    server.start()
 
 
 def _preflight() -> None:
