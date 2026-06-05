@@ -117,7 +117,8 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             process_audio(audio_data, _ctx.config, auto_paste=True, status=_ctx.status)
         except Exception:
-            sys.stderr.write("[Processing error]\n")
+            import traceback
+            traceback.print_exc()
         finally:
             with _ctx.lock:
                 _ctx.state = _IDLE

@@ -6,6 +6,11 @@ import os
 import sys
 import tempfile
 
+# Ensure homebrew bins (ffmpeg, etc.) are on PATH — launchd doesn't inherit shell PATH
+_HOMEBREW_BIN = "/opt/homebrew/bin"
+if _HOMEBREW_BIN not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = _HOMEBREW_BIN + ":" + os.environ.get("PATH", "")
+
 # HF mirror for China network
 if not os.environ.get("HF_ENDPOINT"):
     os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
