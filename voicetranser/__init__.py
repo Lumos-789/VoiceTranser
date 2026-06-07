@@ -1,3 +1,3 @@
-"""VoiceTranser — Voice input → AI-refined prompt → auto-paste to Claude Code."""
+"""VoiceTranser — Voice input → transcript → auto-paste."""
 
 __version__ = "0.1.0"

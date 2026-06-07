@@ -29,10 +29,6 @@ class StatusDisplay:
         """Notify that transcription is in progress."""
         _notify("VoiceTranser", "⠋ Transcribing...")
 
-    def refining(self) -> None:
-        """Notify that prompt refinement is in progress."""
-        _notify("VoiceTranser", "✨ Refining...")
-
     def done(self) -> None:
         """Notify that the result has been pasted."""
         _notify("VoiceTranser", "✅ Done — pasted", sound="Glass")

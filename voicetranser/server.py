@@ -111,7 +111,7 @@ class _Handler(BaseHTTPRequestHandler):
             ).start()
 
     def _process(self, audio_data: bytes) -> None:
-        """Worker: transcribe → refine → paste, then return to idle."""
+        """Worker: transcribe → paste, then return to idle."""
         from voicetranser.__main__ import process_audio
 
         try:

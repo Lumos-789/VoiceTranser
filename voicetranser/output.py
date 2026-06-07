@@ -1,4 +1,4 @@
-"""Output — copy refined prompt to clipboard and auto-paste."""
+"""Output — copy transcript to clipboard and auto-paste."""
 
 from __future__ import annotations
 

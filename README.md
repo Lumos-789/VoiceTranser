@@ -4,14 +4,6 @@
 
 按住全局热键说话，松开后自动完成语音转写并粘贴到当前应用。专为 AI 编程助手（Claude Code、Cursor 等）设计，完全本地运行，零外部依赖。
 
-## ⚡ 一键安装
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Lumos-789/VoiceTranser/main/install.sh | bash
-```
-
-安装完成后授予辅助功能权限，即可使用。详见下方说明。
-
 ## ✨ 特性
 
 - 🎙️ **全局热键录音** — 通过外部快捷键工具（Raycast/Hammerspoon）触发 HTTP 端点

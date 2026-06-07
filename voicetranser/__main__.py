@@ -9,7 +9,6 @@ from pathlib import Path
 from voicetranser.config import Config, load_config
 from voicetranser.output import output
 from voicetranser.recorder import Recorder
-from voicetranser.refiner import refine
 from voicetranser.status import StatusDisplay
 from voicetranser.transcriber import transcribe
 
@@ -21,7 +20,7 @@ def process_audio(
     auto_paste: bool = True,
     status: StatusDisplay | None = None,
 ) -> str:
-    """Full pipeline: audio bytes → transcript → refined prompt → output."""
+    """Full pipeline: audio bytes → transcript → output."""
     use_status = status is not None
 
     if use_status:
@@ -44,27 +43,14 @@ def process_audio(
     if not use_status:
         sys.stderr.write(f"[Transcript] {transcript}\n")
 
-    if use_status:
-        status.refining()
-    else:
-        sys.stderr.write("[Refining...]\n")
-
-    refined = refine(
-        transcript,
-        api_key=config.minimax_api_key,
-        base_url=config.minimax_base_url,
-        model=config.minimax_model,
-        system_prompt=config.refine_system_prompt_text,
-    )
-
-    output(refined, auto_paste=auto_paste)
+    output(transcript, auto_paste=auto_paste)
 
     if use_status:
         status.done()
     else:
-        sys.stderr.write(f"[Refined] {refined}\n")
+        sys.stderr.write(f"[Done] {transcript}\n")
 
-    return refined
+    return transcript
 
 
 def run_once(config: Config, *, auto_paste: bool = True) -> None:
@@ -112,45 +98,19 @@ def run_daemon(config: Config) -> None:
     server.start()
 
 
-def _preflight() -> None:
-    """Check common setup issues before starting daemon mode."""
-    from voicetranser.config import load_config as _load
-
-    dotenv_path = Path(__file__).resolve().parent.parent / ".env"
-    if not dotenv_path.exists():
-        sys.stderr.write(
-            "[!] .env file not found. Run: cp .env.example .env\n"
-            "    Then edit .env and fill in MINIMAX_API_KEY.\n"
-        )
-        sys.exit(1)
-
-    # load_config will SystemExit if key is missing — catch and give friendly message
-    try:
-        _load()
-    except SystemExit:
-        sys.stderr.write(
-            "[!] MINIMAX_API_KEY is not set. Edit .env and add your key:\n"
-            "    MINIMAX_API_KEY=sk-xxx\n"
-        )
-        sys.exit(1)
-
-
 def show_config(config: Config) -> None:
     """Print current configuration."""
     print("VoiceTranser Configuration:")
-    print(f"  MiniMax Model : {config.minimax_model}")
-    print(f"  MiniMax URL   : {config.minimax_base_url}")
-    print(f"  MiniMax Key   : {config.minimax_api_key[:8]}..." if config.minimax_api_key else "  MiniMax Key   : (not set)")
     print(f"  Whisper Model : {config.whisper_model}")
-    print(f"  Hotkey        : {config.hotkey}")
     print(f"  Sample Rate   : {config.sample_rate}")
     print(f"  Language      : {config.language}")
+    print(f"  Server Port   : {config.server_port}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="voicetranser",
-        description="Voice input → AI-refined prompt → auto-paste to Claude Code",
+        description="Voice input → transcript → auto-paste",
     )
     parser.add_argument("--once", action="store_true", help="Record once (interactive, for debugging)")
     parser.add_argument("--file", type=str, help="Process an audio file directly")
@@ -160,15 +120,11 @@ def main() -> None:
 
     cfg = load_config()
 
-    # Preflight checks for daemon mode
-    if not args.config and not args.file:
-        _preflight()
+    auto_paste = not args.no_paste
 
     if args.config:
         show_config(cfg)
         return
-
-    auto_paste = not args.no_paste
 
     if args.file:
         run_file(args.file, cfg, auto_paste=auto_paste)

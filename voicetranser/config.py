@@ -3,37 +3,21 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-_PROMPTS_DIR = Path(__file__).parent / "prompts"
-
 
 @dataclass(frozen=True)
 class Config:
-    # MiniMax (prompt refinement)
-    minimax_api_key: str
-    minimax_base_url: str = "https://api.minimaxi.com/anthropic"
-    minimax_model: str = "MiniMax-M2.7-highspeed"
     # Local Whisper (STT)
-    whisper_model: str = "small"
+    whisper_model: str = "large-v3"
     hf_endpoint: str = "https://huggingface.co"
     # Audio & server
-    hotkey: str = "cmd_r"  # legacy, unused in HTTP mode
     server_port: int = 9876
     sample_rate: int = 16000
     language: str = "zh"
-    # System prompt
-    refine_system_prompt: str = field(default="", repr=False)
-
-    @property
-    def refine_system_prompt_text(self) -> str:
-        if self.refine_system_prompt:
-            return self.refine_system_prompt
-        path = _PROMPTS_DIR / "refine_system.txt"
-        return path.read_text(encoding="utf-8").strip()
 
 
 def load_config(dotenv_path: Path | None = None) -> Config:
@@ -47,18 +31,9 @@ def load_config(dotenv_path: Path | None = None) -> Config:
     hf_endpoint = os.getenv("HF_ENDPOINT", "https://huggingface.co")
     os.environ["HF_ENDPOINT"] = hf_endpoint
 
-    minimax_key = os.getenv("MINIMAX_API_KEY", "")
-
-    if not minimax_key:
-        raise SystemExit("MINIMAX_API_KEY is required. Set it in .env or environment.")
-
     return Config(
-        minimax_api_key=minimax_key,
-        minimax_base_url=os.getenv("MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic"),
-        minimax_model=os.getenv("MINIMAX_MODEL", "MiniMax-M2.7-highspeed"),
         whisper_model=os.getenv("WHISPER_MODEL", "large-v3"),
         hf_endpoint=hf_endpoint,
-        hotkey=os.getenv("HOTKEY", "cmd_r"),
         server_port=int(os.getenv("SERVER_PORT", "9876")),
         sample_rate=int(os.getenv("SAMPLE_RATE", "16000")),
         language=os.getenv("LANGUAGE", "zh"),

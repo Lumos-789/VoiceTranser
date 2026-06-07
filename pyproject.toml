@@ -1,14 +1,13 @@
 [project]
 name = "voicetranser"
 version = "0.1.0"
-description = "Voice input → AI-refined prompt → auto-paste to Claude Code"
+description = "Voice input → transcript → auto-paste"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "sounddevice>=0.5",
     "numpy>=1.26",
     "mlx-whisper>=0.4.3",
-    "anthropic>=0.45",
     "pyperclip>=1.9",
     "python-dotenv>=1.0",
 ]

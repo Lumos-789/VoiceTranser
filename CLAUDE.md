@@ -1,19 +1,18 @@
 # VoiceTranser
 
-语音输入 → AI 智能精炼 → 自动粘贴到 Claude Code。全局热键按住说话，松开后自动转写、精炼、粘贴。
+语音输入 → 转写 → 自动粘贴。全局热键触发 HTTP 端点录音，本地 mlx-whisper 转写，自动粘贴到当前应用。完全本地运行，零外部 API 依赖。
 
 ## 架构
 
 ```
-Global Hotkey (hold) → Recorder (sounddevice) → Transcriber (local faster-whisper) → Refiner (MiniMax-M3) → Output (clipboard + paste)
+External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (mlx-whisper) → Output (clipboard + paste)
 ```
 
 ## 技术栈
 
 - Python 3.11+，`pyproject.toml` + `uv`
-- STT: `faster-whisper` 本地推理（CTranslate2，Apple Silicon 优化），无需 API key
-- Prompt 精炼: MiniMax-M3 (Anthropic SDK 兼容)
-- 全局热键: `pynput`
+- STT: `mlx-whisper` 本地推理（Apple Silicon 优化），无需网络
+- HTTP 服务器: `http.server`（标准库）
 - 音频: `sounddevice` + `numpy`
 
 ## 关键文件
@@ -22,26 +21,22 @@ Global Hotkey (hold) → Recorder (sounddevice) → Transcriber (local faster-wh
 |------|------|
 | `voicetranser/config.py` | 配置管理，从 .env/环境变量加载 |
 | `voicetranser/recorder.py` | 音频录制，sounddevice 流式采集 → WAV |
-| `voicetranser/transcriber.py` | STT，本地 faster-whisper (CTranslate2) |
-| `voicetranser/refiner.py` | Prompt 精炼，MiniMax-M2.7-highspeed |
-| `voicetranser/hotkey.py` | 全局热键监听，pynput（支持 pause/resume） |
+| `voicetranser/transcriber.py` | STT，本地 mlx-whisper |
+| `voicetranser/server.py` | HTTP toggle 服务器（/toggle, /start, /stop, /status） |
 | `voicetranser/output.py` | 剪贴板写入 + 自动粘贴（菜单点击优先，keystroke fallback） |
 | `voicetranser/status.py` | macOS 系统通知反馈 |
-| `voicetranser/__main__.py` | CLI 入口（守护模式用 worker 线程隔离） |
-| `voicetranser/prompts/refine_system.txt` | 精炼 system prompt（智能分级策略） |
+| `voicetranser/__main__.py` | CLI 入口（守护模式 / 单次调试 / 文件处理） |
 
 ## 配置
 
-仅需一个 API key（MiniMax），STT 完全本地运行。
+所有配置均有默认值，无需 API key。
 
 ```bash
-# .env 文件
-MINIMAX_API_KEY=sk-xxx          # MiniMax token plan
-MINIMAX_BASE_URL=https://api.minimaxi.com/anthropic
-MINIMAX_MODEL=MiniMax-M3
-WHISPER_MODEL=small             # tiny/base/small/medium/large-v3，越大越准但越慢
-HOTKEY=cmd_r                    # 全局热键
-LANGUAGE=zh                     # 语音语言
+# .env 文件（可选）
+WHISPER_MODEL=large-v3          # tiny/base/small/medium/large-v3
+SAMPLE_RATE=16000
+LANGUAGE=zh
+SERVER_PORT=9876
 ```
 
 ## 使用
@@ -50,10 +45,7 @@ LANGUAGE=zh                     # 语音语言
 # 安装
 cd VoiceTranser && uv sync
 
-# 配置
-cp .env.example .env  # 填入 MiniMax API key
-
-# 启动（守护模式，全局热键）
+# 启动（守护模式，HTTP 服务器）
 uv run python -m voicetranser
 
 # 单次录制（调试）
@@ -65,11 +57,3 @@ uv run python -m voicetranser --file recording.wav
 # 查看配置
 uv run python -m voicetranser --config
 ```
-
-## MiniMax 接入
-
-复用 CC-Switch 的 Anthropic 兼容格式：
-- Endpoint: `https://api.minimaxi.com/anthropic`
-- Auth: `ANTHROPIC_AUTH_TOKEN`
-- Model: `MiniMax-M3`
-- 使用 `anthropic` SDK，`base_url` 覆盖

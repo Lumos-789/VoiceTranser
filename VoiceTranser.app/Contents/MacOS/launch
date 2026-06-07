@@ -1,0 +1,4 @@
+#!/bin/bash
+# VoiceTranser launcher — runs inside the .app bundle for accessibility
+cd "$(dirname "$0")/../../.."
+exec .venv/bin/python3 -m voicetranser
