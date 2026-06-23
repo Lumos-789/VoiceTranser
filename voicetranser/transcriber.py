@@ -15,7 +15,13 @@ if _HOMEBREW_BIN not in os.environ.get("PATH", ""):
 if not os.environ.get("HF_ENDPOINT"):
     os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
+import mlx.core as mx
 import mlx_whisper
+
+# Cap the MLX Metal allocator's buffer cache. Without this, the reuse pool of
+# freed buffers grows without bound across transcriptions (14 GB observed after
+# ~7 days of uptime). Model weights live outside this pool and are unaffected.
+mx.set_cache_limit(1024 * 1024 * 1024)  # 1 GB
 
 # Singleton — model repo is resolved once, reused across calls
 _model_repo: str | None = None
