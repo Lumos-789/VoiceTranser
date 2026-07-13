@@ -32,6 +32,7 @@ def process_audio(
         audio_data,
         language=config.language,
         model_size=config.whisper_model,
+        engine=config.stt_engine,
     )
 
     if not transcript:
@@ -88,7 +89,11 @@ def run_daemon(config: Config) -> None:
     from voicetranser.server import VoiceServer
 
     recorder = Recorder(sample_rate=config.sample_rate)
-    status = StatusDisplay()
+    status = StatusDisplay(
+        sound_enabled=config.sound_enabled,
+        start_sound=config.start_sound,
+        done_sound=config.done_sound,
+    )
     server = VoiceServer(
         config=config,
         recorder=recorder,
@@ -101,10 +106,13 @@ def run_daemon(config: Config) -> None:
 def show_config(config: Config) -> None:
     """Print current configuration."""
     print("VoiceTranser Configuration:")
-    print(f"  Whisper Model : {config.whisper_model}")
+    print(f"  STT Engine    : {config.stt_engine}")
+    print(f"  Whisper Model : {config.whisper_model}  (used only if engine=mlx-whisper)")
     print(f"  Sample Rate   : {config.sample_rate}")
     print(f"  Language      : {config.language}")
     print(f"  Server Port   : {config.server_port}")
+    print(f"  Sound         : {'on' if config.sound_enabled else 'off'}  "
+          f"(start={config.start_sound}, done={config.done_sound})")
 
 
 def main() -> None:

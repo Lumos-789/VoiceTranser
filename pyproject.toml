@@ -8,6 +8,7 @@ dependencies = [
     "sounddevice>=0.5",
     "numpy>=1.26",
     "mlx-whisper>=0.4.3",
+    "sherpa-onnx==1.10.46",  # 锁定自包含 wheel(1.13.x 的 PyPI 瘦版缺 onnxruntime dylib)
     "pyperclip>=1.9",
     "python-dotenv>=1.0",
 ]

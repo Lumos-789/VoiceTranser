@@ -7,7 +7,7 @@
 ## ✨ 特性
 
 - 🎙️ **全局热键录音** — 通过外部快捷键工具（Raycast/Hammerspoon）触发 HTTP 端点
-- 🧠 **本地 STT** — mlx-whisper (large-v3) 离线转写，Apple Silicon 优化，无需网络，隐私安全
+- 🧠 **本地 STT，双引擎** — 默认 [SenseVoice](https://github.com/FunAudioLLM/SenseVoice)(非自回归，中文秒出)；[mlx-whisper](https://github.com/ml-explore/mlx-whisper) large-v3 作 fallback(英文/小语种更强)。均离线，无需网络，隐私安全
 - 📋 **自动粘贴** — 转写完自动粘贴到当前光标位置
 - 🔔 **系统通知** — 每个阶段 macOS 通知反馈，不盯终端也知道进度
 - 🍎 **macOS 原生** — 菜单点击粘贴 + 系统通知，深度系统集成
@@ -15,7 +15,7 @@
 ## 架构
 
 ```
-External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (mlx-whisper) → Output (clipboard + paste)
+External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (SenseVoice / mlx-whisper) → Output (clipboard + paste)
 ```
 
 ## 快速开始
@@ -75,7 +75,7 @@ uv run python -m voicetranser --config
 
 | 组件 | 技术 |
 |------|------|
-| STT | [mlx-whisper](https://github.com/ml-explore/mlx-whisper) (Apple Silicon 优化) |
+| STT | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) + SenseVoice(默认)/ [mlx-whisper](https://github.com/ml-explore/mlx-whisper)(fallback) |
 | 音频录制 | [sounddevice](https://python-sounddevice.readthedocs.io/) |
 | 包管理 | [uv](https://docs.astral.sh/uv/) |
 

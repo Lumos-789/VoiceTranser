@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -56,15 +56,15 @@ class _Handler(BaseHTTPRequestHandler):
             if _ctx.state == _IDLE:
                 _ctx.state = _RECORDING
                 _ctx.recorder.start()
-                _ctx.status.recording()
                 self._send(200, {"status": _RECORDING})
+                _ctx.status.recording()
             elif _ctx.state == _RECORDING:
                 audio_data = _ctx.recorder.stop()
                 if audio_data is None:
                     _ctx.state = _IDLE
+                    self._send(200, {"status": _IDLE, "message": "too short"})
                     _ctx.status.clear()
                     sys.stderr.write("[Recording too short]\n")
-                    self._send(200, {"status": _IDLE, "message": "too short"})
                     return
                 _ctx.state = _PROCESSING
                 self._send(200, {"status": _PROCESSING})
@@ -88,8 +88,8 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             _ctx.state = _RECORDING
             _ctx.recorder.start()
-            _ctx.status.recording()
             self._send(200, {"status": _RECORDING})
+            _ctx.status.recording()
 
     def _handle_stop(self) -> None:
         """Stop recording and process (for press-and-hold via external hotkey tool)."""
@@ -100,9 +100,9 @@ class _Handler(BaseHTTPRequestHandler):
             audio_data = _ctx.recorder.stop()
             if audio_data is None:
                 _ctx.state = _IDLE
+                self._send(200, {"status": _IDLE, "message": "too short"})
                 _ctx.status.clear()
                 sys.stderr.write("[Recording too short]\n")
-                self._send(200, {"status": _IDLE, "message": "too short"})
                 return
             _ctx.state = _PROCESSING
             self._send(200, {"status": _PROCESSING})
@@ -154,7 +154,7 @@ class VoiceServer:
 
     def start(self) -> None:
         """Start the HTTP server (blocks the calling thread)."""
-        server = HTTPServer((self._host, self._port), _Handler)
+        server = ThreadingHTTPServer((self._host, self._port), _Handler)
         sys.stderr.write(
             f"[VoiceTranser] HTTP server listening on {self._host}:{self._port}\n"
             "  GET /start   — start recording\n"

@@ -11,7 +11,12 @@ import sounddevice as sd
 
 
 class Recorder:
-    """Record audio from the default microphone while active."""
+    """Record audio from the default microphone while active.
+
+    Holds a single long-lived InputStream and starts/stops it per recording,
+    so each capture begins with a warm stream (~40 ms) instead of paying the
+    ~160 ms device-open cost on every key press.
+    """
 
     def __init__(self, sample_rate: int = 16000, channels: int = 1) -> None:
         self.sample_rate = sample_rate
@@ -24,18 +29,25 @@ class Recorder:
     def active(self) -> bool:
         return self._active
 
-    def start(self) -> None:
-        """Start recording."""
-        if self._active:
+    def _ensure_stream(self) -> None:
+        """Lazily create the persistent input stream (once per process)."""
+        if self._stream is not None:
             return
-        self._frames.clear()
-        self._active = True
         self._stream = sd.InputStream(
             samplerate=self.sample_rate,
             channels=self.channels,
             dtype="float32",
             callback=self._audio_callback,
         )
+
+    def start(self) -> None:
+        """Start recording."""
+        if self._active:
+            return
+        self._ensure_stream()
+        self._frames.clear()
+        self._active = True
+        assert self._stream is not None
         self._stream.start()
 
     def stop(self) -> bytes | None:
@@ -45,8 +57,6 @@ class Recorder:
         self._active = False
         if self._stream is not None:
             self._stream.stop()
-            self._stream.close()
-            self._stream = None
 
         if not self._frames:
             return None
@@ -72,4 +82,7 @@ class Recorder:
     ) -> None:
         if status:
             sys.stderr.write(f"\r[Audio: {status}]\r")
+        # Drain into nowhere while idle — the stream stays warm but we keep no data.
+        if not self._active:
+            return
         self._frames.append(indata.copy())

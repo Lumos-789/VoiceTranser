@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.voicetranser-sense</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/black-wood/IdeaProjects/myProjects/VoiceTranser/.venv/bin/python3</string>
+        <string>-m</string>
+        <string>voicetranser</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/black-wood/IdeaProjects/myProjects/VoiceTranser</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HF_ENDPOINT</key>
+        <string>https://hf-mirror.com</string>
+        <key>STT_ENGINE</key>
+        <string>sensevoice</string>
+        <key>SERVER_PORT</key>
+        <string>9877</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/black-wood/Library/Logs/VoiceTranser-sense.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/black-wood/Library/Logs/VoiceTranser-sense.log</string>
+</dict>
+</plist>
