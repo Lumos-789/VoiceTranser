@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -24,6 +24,9 @@ class Config:
     sound_enabled: bool = True
     start_sound: str = "Blow"
     done_sound: str = "Glass"
+    # STT 误识词纠正(转写后、输出前)。词表为空 = 功能关闭。
+    corrections_enabled: bool = True
+    corrections: dict[str, str] = field(default_factory=dict)
 
 
 def _to_bool(value: str, default: bool = False) -> bool:
@@ -41,6 +44,13 @@ def load_config(dotenv_path: Path | None = None) -> Config:
     hf_endpoint = os.getenv("HF_ENDPOINT", "https://huggingface.co")
     os.environ["HF_ENDPOINT"] = hf_endpoint
 
+    # STT 误识词纠正词表。CORRECTIONS_FILE 空 → 用项目内 corrections.json;
+    # 文件缺失/损坏 → 空字典(功能静默关闭)。
+    from voicetranser.corrector import load_corrections
+
+    corrections_file = os.getenv("CORRECTIONS_FILE", "")
+    corrections = load_corrections(corrections_file or None)
+
     return Config(
         stt_engine=os.getenv("STT_ENGINE", "sensevoice"),
         whisper_model=os.getenv("WHISPER_MODEL", "large-v3"),
@@ -51,4 +61,8 @@ def load_config(dotenv_path: Path | None = None) -> Config:
         sound_enabled=_to_bool(os.getenv("SOUND_ENABLED", "true"), default=True),
         start_sound=os.getenv("START_SOUND", "Blow"),
         done_sound=os.getenv("DONE_SOUND", "Glass"),
+        corrections_enabled=_to_bool(
+            os.getenv("CORRECTIONS_ENABLED", "true"), default=True
+        ),
+        corrections=corrections,
     )

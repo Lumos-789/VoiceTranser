@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from voicetranser.config import Config, load_config
+from voicetranser.corrector import apply_corrections
 from voicetranser.output import output
 from voicetranser.recorder import Recorder
 from voicetranser.status import StatusDisplay
@@ -40,6 +41,10 @@ def process_audio(
             status.clear()
         sys.stderr.write("[No speech detected]\n")
         return ""
+
+    # STT 误识词纠正(纯整词匹配,大小写不敏感)。词表为空时无操作。
+    if config.corrections_enabled and config.corrections:
+        transcript = apply_corrections(transcript, config.corrections)
 
     if not use_status:
         sys.stderr.write(f"[Transcript] {transcript}\n")
@@ -113,6 +118,13 @@ def show_config(config: Config) -> None:
     print(f"  Server Port   : {config.server_port}")
     print(f"  Sound         : {'on' if config.sound_enabled else 'off'}  "
           f"(start={config.start_sound}, done={config.done_sound})")
+    corr_status = (
+        f"on ({len(config.corrections)} rule"
+        f"{'s' if len(config.corrections) != 1 else ''})"
+        if config.corrections_enabled and config.corrections
+        else "off"
+    )
+    print(f"  Corrections   : {corr_status}")
 
 
 def main() -> None:

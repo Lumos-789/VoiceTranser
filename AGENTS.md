@@ -48,10 +48,12 @@ External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (sen
 | `voicetranser/config.py` | 配置管理(stt_engine / whisper_model / port 等) |
 | `voicetranser/recorder.py` | 音频录制，sounddevice 流式采集 → WAV |
 | `voicetranser/transcriber.py` | STT 双引擎分派(sensevoice / mlx-whisper)，各自懒加载、单例 |
+| `voicetranser/corrector.py` | STT 误识词纠正(转写后、输出前)，纯整词匹配，词表来自 `corrections.json` |
 | `voicetranser/server.py` | HTTP toggle 服务器(/toggle, /start, /stop, /status) |
 | `voicetranser/output.py` | 剪贴板写入 + 自动粘贴(菜单点击优先，keystroke fallback) |
 | `voicetranser/status.py` | macOS 系统通知反馈 |
 | `voicetranser/__main__.py` | CLI 入口(守护 / 单次 / 文件处理) |
+| `corrections.json` | 误识词纠正词表(用户可编辑，日常发现新误识加一行即可) |
 | `download_model.py` | 下 SenseVoice 模型到 `models/sense-voice/`(hf-mirror 源，幂等) |
 | `com.voicetranser-sense.plist` | 新实例 launchd 配置(端口 9877 + sensevoice) |
 | `voicetranser/hotkey.py` | 已废弃(pynput push-to-talk，被 HTTP server 取代，pynput 不在依赖) |
