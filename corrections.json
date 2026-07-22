@@ -2,5 +2,6 @@
   "_comment": "STT 误识词纠正表。key = STT 常输出的误识形式（匹配时大小写不敏感），value = 正确写法（保留原样大小写输出）。纯整词匹配，不会误伤子串（如 'scu' 不会改 'sculpture'）。多 token 短语也支持（如 'claude code'）。日常发现新误识 → 在此加一行 → 重启服务生效。空文件 {} = 功能关闭。",
   "scu": "skill",
   "skeel": "skill",
-  "scil": "skill"
+  "scil": "skill",
+  "agentwayallyally": "agent"
 }
