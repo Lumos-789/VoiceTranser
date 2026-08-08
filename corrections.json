@@ -8,5 +8,6 @@
   "A镇": "agent",
   "A站": "agent",
   "tra": "trace",
-  "aent": "Agent"
+  "aent": "Agent",
+  "ent": "agent"
 }
