@@ -15,18 +15,17 @@
 
 ## 当前实例（2026-07-13 起）
 
-sense 引擎测好后转正为主力，老 mlx-whisper 实例已暂停：
+sense 引擎测好后转正为主力，老 mlx-whisper 实例 2026-08-23 已彻底移除：
 
 | 实例 | launchd Label | 端口 | 引擎 | 热键 | 状态 |
 |------|---------------|------|------|------|------|
 | 主力 | `com.voicetranser-sense` | 9877 | sensevoice | `right_option` 按下录/松开停 | ✅ 已 load，开机自启 + KeepAlive |
-| 老 | `com.voicetranser` | 9876 | mlx-whisper(`.env` 锁定) | `right_command` | ⏸ 已 unload 暂停（plist 保留在 `~/Library/LaunchAgents/`，路径仍是旧的 `/IdeaProjects/VoiceTranser`，如需恢复需先改路径再 load） |
 
 热键由 Karabiner-Elements complex_modifications 配置：`right_option` 按下 → `curl localhost:9877/start`，松开 → `curl localhost:9877/stop`（见 `~/.config/karabiner/karabiner.json`）。
 
 主力 plist：`com.voicetranser-sense.plist`(项目根)，同步装到 `~/Library/LaunchAgents/`，日志 `~/Library/Logs/VoiceTranser-sense.log`。**路径已修正为 `/Users/black-wood/IdeaProjects/myProjects/VoiceTranser`**（之前写错少一层 `myProjects`，导致重启后 launchd 找不到 python、`EX_CONFIG` 反复崩）。
 
-**后续彻底收尾**（可选）：删老 plist + 删 `~/Library/LaunchAgents/com.voicetranser.plist` + `.env` 去掉 `STT_ENGINE=mlx-whisper` + Karabiner 删 `right_command`→9876 规则。
+**老实例收尾（2026-08-23 完成）**：已删 `~/Library/LaunchAgents/com.voicetranser.plist` 并 bootout（其路径仍指向旧 `/IdeaProjects/VoiceTranser`，每次开机以 exit 78 空转）；`.env` 去掉 `STT_ENGINE=mlx-whisper` 锁定；Karabiner 删 `right_command`→9876 规则（删前备份 `.zcode/tmp/karabiner.json.bak-20260823`）。如需恢复 mlx-whisper：改用 `STT_ENGINE=mlx-whisper` 起新实例或临时命令行运行。
 
 ## 架构
 
