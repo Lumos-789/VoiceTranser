@@ -37,7 +37,15 @@ _ctx = _Context()
 
 
 class _Handler(BaseHTTPRequestHandler):
-    """Handles /toggle and /status requests."""
+    """Handles /toggle and /status requests.
+
+    Invariant (2026-08-27 incident): recorder.start()/stop() must run OUTSIDE
+    _ctx.lock. A CoreAudio stop() deadlocked inside HALB_Mutex::Lock while the
+    handler held the lock, wedging every endpoint behind it. The lock guards
+    only the state machine; slow/failing audio calls roll the state back after
+    the fact, and Recorder's watchdog bounds a true deadlock with a process
+    exit + launchd restart.
+    """
 
     def do_GET(self) -> None:
         if self.path == "/toggle":
@@ -53,28 +61,14 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _handle_toggle(self) -> None:
         with _ctx.lock:
-            if _ctx.state == _IDLE:
-                _ctx.state = _RECORDING
-                _ctx.recorder.start()
-                self._send(200, {"status": _RECORDING})
-                _ctx.status.recording()
-            elif _ctx.state == _RECORDING:
-                audio_data = _ctx.recorder.stop()
-                if audio_data is None:
-                    _ctx.state = _IDLE
-                    self._send(200, {"status": _IDLE, "message": "too short"})
-                    _ctx.status.clear()
-                    sys.stderr.write("[Recording too short]\n")
-                    return
-                _ctx.state = _PROCESSING
-                self._send(200, {"status": _PROCESSING})
-                # Process in background thread
-                threading.Thread(
-                    target=self._process, args=(audio_data,), daemon=True
-                ).start()
-            else:
-                # Already processing — reject
-                self._send(409, {"status": _ctx.state, "message": "busy"})
+            state = _ctx.state
+        if state == _IDLE:
+            self._handle_start()
+        elif state == _RECORDING:
+            self._handle_stop()
+        else:
+            # Processing — reject
+            self._send(409, {"status": state, "message": "busy"})
 
     def _handle_status(self) -> None:
         with _ctx.lock:
@@ -87,9 +81,15 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(409, {"status": _ctx.state, "message": "busy"})
                 return
             _ctx.state = _RECORDING
+        try:
             _ctx.recorder.start()
-            self._send(200, {"status": _RECORDING})
-            _ctx.status.recording()
+        except Exception as exc:
+            with _ctx.lock:
+                _ctx.state = _IDLE
+            self._send(500, {"status": _IDLE, "message": f"audio start failed: {exc}"})
+            return
+        self._send(200, {"status": _RECORDING})
+        _ctx.status.recording()
 
     def _handle_stop(self) -> None:
         """Stop recording and process (for press-and-hold via external hotkey tool)."""
@@ -97,18 +97,28 @@ class _Handler(BaseHTTPRequestHandler):
             if _ctx.state != _RECORDING:
                 self._send(409, {"status": _ctx.state, "message": "not recording"})
                 return
-            audio_data = _ctx.recorder.stop()
-            if audio_data is None:
-                _ctx.state = _IDLE
-                self._send(200, {"status": _IDLE, "message": "too short"})
-                _ctx.status.clear()
-                sys.stderr.write("[Recording too short]\n")
-                return
+            # Claim processing first so a concurrent /stop gets a clean 409
+            # instead of racing into recorder.stop() twice.
             _ctx.state = _PROCESSING
-            self._send(200, {"status": _PROCESSING})
-            threading.Thread(
-                target=self._process, args=(audio_data,), daemon=True
-            ).start()
+        try:
+            audio_data = _ctx.recorder.stop()
+        except Exception as exc:
+            with _ctx.lock:
+                _ctx.state = _IDLE
+            self._send(500, {"status": _IDLE, "message": f"audio stop failed: {exc}"})
+            return
+        if audio_data is None:
+            with _ctx.lock:
+                _ctx.state = _IDLE
+            self._send(200, {"status": _IDLE, "message": "too short"})
+            _ctx.status.clear()
+            sys.stderr.write("[Recording too short]\n")
+            return
+        self._send(200, {"status": _PROCESSING})
+        # Process in background thread
+        threading.Thread(
+            target=self._process, args=(audio_data,), daemon=True
+        ).start()
 
     def _process(self, audio_data: bytes) -> None:
         """Worker: transcribe → paste, then return to idle."""

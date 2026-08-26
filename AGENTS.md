@@ -46,6 +46,7 @@ External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (sen
 |------|------|
 | `voicetranser/config.py` | 配置管理(stt_engine / whisper_model / port 等) |
 | `voicetranser/recorder.py` | 音频录制，sounddevice 流式采集 → WAV |
+| `voicetranser/watchdog.py` | CoreAudio 死锁看门狗：建流/start/stop 超时(默认5s)则 `os._exit` 由 launchd 自愈重启(2026-08-27 事故) |
 | `voicetranser/transcriber.py` | STT 双引擎分派(sensevoice / mlx-whisper)，各自懒加载、单例 |
 | `voicetranser/corrector.py` | STT 误识词纠正(转写后、输出前)，纯整词匹配，词表来自 `corrections.json` |
 | `voicetranser/server.py` | HTTP toggle 服务器(/toggle, /start, /stop, /status) |
@@ -65,6 +66,7 @@ External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (sen
 - `WHISPER_MODEL=large-v3`(仅 mlx-whisper 用)
 - `SERVER_PORT=9876`(默认；新实例用 9877)
 - `SAMPLE_RATE=16000` / `LANGUAGE=zh`
+- `VT_AUDIO_WATCHDOG_TIMEOUT=5`(秒；音频流操作超时即自杀重启，勿设太小以免唤醒后冷启动误杀)
 
 ## 使用
 

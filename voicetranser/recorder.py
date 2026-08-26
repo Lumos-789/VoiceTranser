@@ -9,6 +9,8 @@ import wave
 import numpy as np
 import sounddevice as sd
 
+from voicetranser.watchdog import watchdog
+
 
 class Recorder:
     """Record audio from the default microphone while active.
@@ -33,12 +35,15 @@ class Recorder:
         """Lazily create the persistent input stream (once per process)."""
         if self._stream is not None:
             return
-        self._stream = sd.InputStream(
-            samplerate=self.sample_rate,
-            channels=self.channels,
-            dtype="float32",
-            callback=self._audio_callback,
-        )
+        # Stream creation talks to the same CoreAudio/HAL mutexes that can
+        # deadlock (2026-08-27 incident) — guard it like start/stop.
+        with watchdog:
+            self._stream = sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                dtype="float32",
+                callback=self._audio_callback,
+            )
 
     def start(self) -> None:
         """Start recording."""
@@ -48,7 +53,8 @@ class Recorder:
         self._frames.clear()
         self._active = True
         assert self._stream is not None
-        self._stream.start()
+        with watchdog:
+            self._stream.start()
 
     def stop(self) -> bytes | None:
         """Stop recording and return WAV bytes. Returns None if too short (<0.5s)."""
@@ -56,7 +62,10 @@ class Recorder:
             return None
         self._active = False
         if self._stream is not None:
-            self._stream.stop()
+            # stop() is the exact call that deadlocked inside HALB_Mutex::Lock
+            # on 2026-08-27 — always guarded.
+            with watchdog:
+                self._stream.stop()
 
         if not self._frames:
             return None
