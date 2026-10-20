@@ -81,6 +81,8 @@ idle ◄───────────────── recording ◄──�
 | `voicetranser/recorder.py` | 音频录制。`sounddevice` 流式采集 → WAV bytes。长连接 stream 复用,省每次开设备 ~160ms |
 | `voicetranser/transcriber.py` | STT 双引擎分派(sensevoice / mlx-whisper),各自懒加载、单例,互不 import |
 | `voicetranser/server.py` | HTTP toggle 服务器。`/toggle` `/start` `/stop` `/status`,状态机 + 后台转写线程 |
+| `voicetranser/corrector.py` | STT 误识词纠正(转写后、输出前)。纯整词匹配、大小写不敏感,词表来自 `corrections.json`,支持多 token 短语(如 `claude code`) |
+| `voicetranser/watchdog.py` | CoreAudio 死锁看门狗:建流/start/stop 超时(默认 5s)即 `os._exit`,由 launchd KeepAlive 秒级拉起自愈 |
 | `voicetranser/output.py` | 剪贴板写入 + 自动粘贴。菜单点击优先(Edit>Paste),失败回退 keystroke 模拟 Cmd+V |
 | `voicetranser/status.py` | macOS 系统通知 + 音效反馈(afplay 异步,不阻塞 handler) |
 | `voicetranser/hotkey.py` | ⚠️ **已废弃**(pynput push-to-talk,被 HTTP server 取代,`pynput` 不在依赖里,别用) |
@@ -161,6 +163,8 @@ uv run python download_model.py
 
 走 HuggingFace 国内镜像(hf-mirror.com),国内带宽约 1~3 分钟。下载到 `models/sense-voice/`,**幂等** —— 已存在会跳过。
 
+> 拿到的是**完整离线包**(解压后已带 `models/sense-voice/`)的话,这步可以直接跳过;跑一遍也无妨,幂等。
+
 > 海外用户如果镜像慢,改走官方源:
 > ```bash
 > HF_ENDPOINT=https://huggingface.co uv run python download_model.py
@@ -188,6 +192,9 @@ cp .env.example .env
 | `HF_ENDPOINT` | `https://hf-mirror.com` | 模型下载源,海外可改 `https://huggingface.co` |
 | `SOUND_ENABLED` | `true` | 反馈音效开关,嫌吵设 `false` |
 | `START_SOUND` / `DONE_SOUND` | `Blow` / `Glass` | 系统 Sound 名,可换 `Tink`/`Pop`/`Frog`/`Submarine` 等(见 `/System/Library/Sounds/`) |
+| `CORRECTIONS_ENABLED` | `true` | 误识词纠正开关;词表在项目根 `corrections.json`,日常发现新误识加一行、重启服务即生效 |
+| `CORRECTIONS_FILE` | (空=项目内默认) | 自定义纠正词表路径 |
+| `VT_AUDIO_WATCHDOG_TIMEOUT` | `5` | 音频流操作看门狗超时秒数,超时进程自杀交由 launchd 重启;勿设太小以免休眠唤醒冷启动误杀 |
 
 ### 第 5 步:授权(关键!不授权没法用)
 
@@ -196,7 +203,7 @@ VoiceTranser 需要两个权限:**麦克风**(录音)和**辅助功能**(自动�
 **5.1 麦克风权限** —— 首次运行时系统会弹窗,点**允许**即可。没弹或手滑点了拒绝,手动开:
 **系统设置 → 隐私与安全性 → 麦克风** → 把你跑命令的终端(Terminal / iTerm / Warp)打开开关。
 
-**5.2 边助功能权限**(自动粘贴必需) —— **系统设置 → 隐私与安全性 → 辅助功能** → 把你的终端应用拖进来 / 打开开关。
+**5.2 辅助功能权限**(自动粘贴必需) —— **系统设置 → 隐私与安全性 → 辅助功能** → 把你的终端应用拖进来 / 打开开关。
 
 > 这个权限让 VoiceTranser 能模拟 `Cmd+V` 把转写结果粘到当前窗口。没这个权限 = 转写能成功但不会自动粘贴。
 
@@ -438,6 +445,12 @@ uv run python tests/diagnose.py          # 全量检查
 uv run python tests/diagnose.py --fix    # 检查 + 自动重启修复
 ```
 
+单元测试(纠正词表 / 服务器状态机 / 看门狗):
+
+```bash
+uv run python -m unittest discover tests -v
+```
+
 ### 常见问题
 
 **转写成功但不自动粘贴** → **辅助功能权限没授**。系统设置 → 隐私与安全性 → 辅助功能,把终端/python 打开。launchd 启动的实例要单独授一次(列表里会出现 `python`/`Python` 条目)。
@@ -448,7 +461,7 @@ uv run python tests/diagnose.py --fix    # 检查 + 自动重启修复
 
 **开机自启不生效 / launchd 反复崩** → 99% 是 plist 里的**路径写错了**。检查 `<YOUR_PROJECT_PATH>` 和 `.venv/bin/python3` 是否真实存在:`ls <YOUR_PROJECT_PATH>/.venv/bin/python3`。
 
-**音频报错 `-9986` / PortAudio 异常** → macOS 休眠后音频子系统状态损坏、蓝牙耳机切换、虚拟音频驱动冲突。`launchctl kickstart -k gui/$(id -u)/com.voicetranser` 重启进程。
+**音频报错 `-9986` / PortAudio 异常** → macOS 休眠后音频子系统状态损坏、蓝牙耳机切换、虚拟音频驱动冲突。代码内置看门狗(`watchdog.py`):音频操作超时 5 秒进程自动退出、launchd 秒级拉起,多数情况无感自愈;若连续失败,`launchctl kickstart -k gui/$(id -u)/com.voicetranser` 手动重启。
 
 **内存占用高(mlx-whisper 引擎)** → mlx-whisper large-v3 常驻 ~3GB 属正常(SenseVoice 只占 400MB)。代码里已设 `mx.set_cache_limit(1GB)` 防止 Metal 缓存无限增长。中文场景换 SenseVoice 即可。
 
