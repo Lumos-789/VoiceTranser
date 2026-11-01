@@ -1,0 +1,42 @@
+{
+  "name": "voicetranser",
+  "version": "1.0.0",
+  "description": "Fully local push-to-talk voice input for macOS: hold a global hotkey, speak, release — transcription is pasted at your cursor. Local-first STT (Qwen3-ASR MLX / SenseVoice / mlx-whisper), zero external APIs. This package ships the agent skill that installs, configures and troubleshoots the tool.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "skills/",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-skill-filesystem": ">=0.1.0-rc.6 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lumos-789/VoiceTranser"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "voice-input",
+    "speech-to-text",
+    "macos",
+    "push-to-talk",
+    "local-first",
+    "qwen3-asr",
+    "sensevoice"
+  ]
+}
