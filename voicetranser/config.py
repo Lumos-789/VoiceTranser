@@ -11,8 +11,9 @@ from dotenv import load_dotenv
 
 @dataclass(frozen=True)
 class Config:
-    # STT engine: "sensevoice" (default, fast) or "mlx-whisper" (fallback)
-    stt_engine: str = "sensevoice"
+    # STT engine: "qwen3-mlx" (default, MLX/Metal, fastest+best zh) or
+    # "sensevoice" (CPU) / "mlx-whisper" (fallbacks)
+    stt_engine: str = "qwen3-mlx"
     # Local Whisper (STT) — only used when stt_engine == "mlx-whisper"
     whisper_model: str = "large-v3"
     hf_endpoint: str = "https://huggingface.co"
@@ -52,7 +53,7 @@ def load_config(dotenv_path: Path | None = None) -> Config:
     corrections = load_corrections(corrections_file or None)
 
     return Config(
-        stt_engine=os.getenv("STT_ENGINE", "sensevoice"),
+        stt_engine=os.getenv("STT_ENGINE", "qwen3-mlx"),
         whisper_model=os.getenv("WHISPER_MODEL", "large-v3"),
         hf_endpoint=hf_endpoint,
         server_port=int(os.getenv("SERVER_PORT", "9876")),

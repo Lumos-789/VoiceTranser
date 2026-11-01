@@ -70,8 +70,8 @@ def check_process() -> tuple[bool, int | None]:
     return False, None
 
 
-def check_http_server(port: int = 9876) -> bool:
-    """3. HTTP 服务器是否响应。"""
+def check_http_server(port: int = 9877) -> bool:
+    """3. HTTP 服务器是否响应(主力实例端口 9877, launchd plist 定义)。"""
     header("HTTP 服务器")
     try:
         result = subprocess.run(

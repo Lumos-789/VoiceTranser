@@ -164,6 +164,13 @@ class VoiceServer:
 
     def start(self) -> None:
         """Start the HTTP server (blocks the calling thread)."""
+        # 模型预热(后台): qwen3-mlx 冷加载 ~75s, 不预热的话服务启动后第一次
+        # 按键说话要干等。预热失败不致命, 首次转写时再暴露真实错误。
+        from voicetranser.transcriber import preload_engine
+
+        threading.Thread(
+            target=preload_engine, args=(_ctx.config.stt_engine,), daemon=True
+        ).start()
         server = ThreadingHTTPServer((self._host, self._port), _Handler)
         sys.stderr.write(
             f"[VoiceTranser] HTTP server listening on {self._host}:{self._port}\n"

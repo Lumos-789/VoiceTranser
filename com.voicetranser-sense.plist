@@ -17,7 +17,7 @@
         <key>HF_ENDPOINT</key>
         <string>https://hf-mirror.com</string>
         <key>STT_ENGINE</key>
-        <string>sensevoice</string>
+        <string>qwen3-mlx</string>
         <key>SERVER_PORT</key>
         <string>9877</string>
     </dict>
