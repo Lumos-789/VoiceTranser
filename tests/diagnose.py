@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 # ── 颜色输出 ──────────────────────────────────────────────────────────────
 GREEN = "\033[92m"
@@ -43,7 +44,15 @@ def check_python_deps() -> bool:
     """1. Python 依赖是否齐全。"""
     header("Python 依赖")
     all_ok = True
-    deps = ["sounddevice", "numpy", "mlx_whisper", "pyperclip", "dotenv"]
+    deps = [
+        "sounddevice",
+        "numpy",
+        "mlx_audio",
+        "mlx_whisper",
+        "sherpa_onnx",
+        "pyperclip",
+        "dotenv",
+    ]
     for dep in deps:
         mod = dep if dep != "dotenv" else "dotenv"
         try:
@@ -70,9 +79,10 @@ def check_process() -> tuple[bool, int | None]:
     return False, None
 
 
-def check_http_server(port: int = 9877) -> bool:
-    """3. HTTP 服务器是否响应(主力实例端口 9877, launchd plist 定义)。"""
+def check_http_server(port: int | None = None) -> bool:
+    """3. HTTP 服务器是否响应(默认读 SERVER_PORT,否则用 launchd 的 9877)。"""
     header("HTTP 服务器")
+    port = port or int(os.getenv("SERVER_PORT", "9877"))
     try:
         result = subprocess.run(
             ["curl", "-s", "--max-time", "3", f"http://127.0.0.1:{port}/status"],
@@ -116,34 +126,43 @@ def check_audio_device() -> bool:
     except Exception as e:
         fail(f"音频设备异常: {e}")
         warn("常见原因: macOS 休眠后音频子系统状态损坏、蓝牙耳机切换、虚拟音频驱动冲突")
-        warn("修复: 重启进程 — launchctl kickstart -k gui/$(id -u)/com.voicetranser")
+        warn("修复: 重启进程 — launchctl kickstart -k gui/$(id -u)/com.voicetranser-sense")
         return False
 
 
-def check_whisper_model() -> bool:
-    """5. Whisper 模型是否可加载。"""
-    header("Whisper 模型")
+def check_stt_model() -> bool:
+    """5. 当前引擎的模型是否已缓存。"""
+    header("STT 模型")
     try:
-        # 只检查模型仓库是否可解析，不做实际转写
         from voicetranser.config import load_config
 
         cfg = load_config()
-        repo = f"mlx-community/whisper-{cfg.whisper_model}-mlx"
-
-        # 检查本地缓存
-        hf_home = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-        hub_cache = os.path.join(hf_home, "hub")
-        model_cached = False
-        if os.path.isdir(hub_cache):
-            for d in os.listdir(hub_cache):
-                if repo.replace("/", "--") in d:
-                    model_cached = True
-                    break
-
-        if model_cached:
-            ok(f"模型已缓存: {repo}")
+        hf_home = Path(
+            os.environ.get("HF_HOME", str(Path.home() / ".cache/huggingface"))
+        )
+        hub_cache = hf_home / "hub"
+        if cfg.stt_engine == "qwen3-mlx":
+            repo = "mlx-community/Qwen3-ASR-0.6B-4bit"
+            cached = (hub_cache / "models--mlx-community--Qwen3-ASR-0.6B-4bit").is_dir()
+            label = f"{repo} (MLX)"
+        elif cfg.stt_engine == "sensevoice":
+            model_dir = Path(__file__).resolve().parent.parent / "models/sense-voice"
+            cached = (model_dir / "model.int8.onnx").is_file() and (
+                model_dir / "tokens.txt"
+            ).is_file()
+            label = str(model_dir)
+        elif cfg.stt_engine == "mlx-whisper":
+            repo = f"mlx-community/whisper-{cfg.whisper_model}-mlx"
+            cached = (hub_cache / repo.replace("/", "--")).is_dir()
+            label = repo
         else:
-            warn(f"模型未在本地缓存: {repo}（首次转写时会下载）")
+            fail(f"未知 STT 引擎: {cfg.stt_engine!r}")
+            return False
+
+        if cached:
+            ok(f"当前引擎 {cfg.stt_engine} 模型已就绪: {label}")
+        else:
+            warn(f"当前引擎 {cfg.stt_engine} 模型未缓存: {label}（首次转写时会下载）")
         return True
     except Exception as e:
         fail(f"模型检查失败: {e}")
@@ -188,7 +207,10 @@ def check_recent_errors(log_path: str | None = None) -> bool:
     """8. 最近日志中是否有错误。"""
     header("最近日志错误")
     if log_path is None:
-        log_path = os.path.expanduser("~/Library/Logs/VoiceTranser.log")
+        log_path = str(Path.home() / "Library/Logs/VoiceTranser-sense.log")
+        legacy_log = Path.home() / "Library/Logs/VoiceTranser.log"
+        if not os.path.isfile(log_path) and legacy_log.is_file():
+            log_path = str(legacy_log)
 
     if not os.path.isfile(log_path):
         warn(f"日志文件不存在: {log_path}")
@@ -266,18 +288,19 @@ def auto_fix() -> None:
     try:
         uid = os.getuid()
         subprocess.run(
-            ["launchctl", "kickstart", "-k", f"gui/{uid}/com.voicetranser"],
+            [
+                "launchctl",
+                "kickstart",
+                "-k",
+                f"gui/{uid}/com.voicetranser-sense",
+            ],
             check=True, capture_output=True, text=True,
         )
         import time
         time.sleep(3)
 
         # 验证
-        result = subprocess.run(
-            ["curl", "-s", "--max-time", "3", "http://127.0.0.1:9876/status"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if '"status"' in result.stdout:
+        if check_http_server():
             ok("重启成功，服务已恢复")
             return
         fail("重启后服务仍未响应")
@@ -297,7 +320,7 @@ def main() -> None:
     results["守护进程"] = check_process()[0]
     results["HTTP 服务器"] = check_http_server()
     results["音频设备"] = check_audio_device()
-    results["Whisper 模型"] = check_whisper_model()
+    results["STT 模型"] = check_stt_model()
     results["剪贴板"] = check_clipboard()
     results["外部工具"] = check_cli_tools()
     results["日志检查"] = check_recent_errors()

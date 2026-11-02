@@ -66,11 +66,11 @@ Karabiner complex_modifications 配置：`right_option` 按下 → `curl localho
 ### 常驻后台（launchd）
 
 ```bash
-cp com.voicetranser-sense.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.voicetranser-sense.plist
+uv run python install_launchd.py
+curl -s localhost:9877/status
 ```
 
-开机自启 + 崩溃自愈；服务启动时后台预热模型。
+安装脚本会按**当前 checkout 的绝对路径**生成 `~/Library/LaunchAgents/com.voicetranser-sense.plist`，再加载并启动服务；开机自启 + 崩溃自愈，服务启动时后台预热模型。需要换端口或引擎时用 `--port` / `--engine`，只生成不加载用 `--no-load`。
 
 ### macOS 辅助功能权限
 

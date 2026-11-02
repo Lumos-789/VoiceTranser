@@ -20,7 +20,7 @@ VoiceTranser 是一个 macOS 本地语音输入工具。核心流程:
 | 特性 | 说明 |
 |------|------|
 | 🎙️ 全局热键录音 | 通过外部快捷键工具(Karabiner/Raycast)触发 HTTP 端点,按住说话、松开出字 |
-| 🧠 本地 STT,双引擎 | 默认 [SenseVoice](https://github.com/FunAudioLLM/SenseVoice)(中文秒出);[mlx-whisper](https://github.com/ml-explore/mlx-whisper) large-v3 作 fallback(英文/小语种更强)。均离线,无需网络 |
+| 🧠 本地 STT,三引擎 | 默认 [Qwen3-ASR 0.6B 4bit](https://huggingface.co/mlx-community/Qwen3-ASR-0.6B-4bit)(MLX/Metal,中文带标点、中英夹杂强);[SenseVoice](https://github.com/FunAudioLLM/SenseVoice) 作 CPU fallback;[mlx-whisper](https://github.com/ml-explore/mlx-whisper) large-v3 覆盖英文/小语种。均离线,无需网络 |
 | 📋 自动粘贴 | 转写完自动粘到当前光标位置(任何应用都行) |
 | 🔔 系统通知 | 每个阶段 macOS 通知 + 音效反馈 |
 | 🍎 macOS 原生 | 菜单点击粘贴 + 系统通知,深度系统集成 |
@@ -79,7 +79,9 @@ idle ◄───────────────── recording ◄──�
 | `voicetranser/__main__.py` | CLI 入口(守护 / 单次 / 文件处理 / 查配置),含 `process_audio` 全流水线函数 |
 | `voicetranser/config.py` | 配置管理。读 `.env` + 环境变量,产出不可变 `Config` dataclass |
 | `voicetranser/recorder.py` | 音频录制。`sounddevice` 流式采集 → WAV bytes。长连接 stream 复用,省每次开设备 ~160ms |
-| `voicetranser/transcriber.py` | STT 双引擎分派(sensevoice / mlx-whisper),各自懒加载、单例,互不 import |
+| `voicetranser/transcriber.py` | STT 三引擎分派(qwen3-mlx / sensevoice / mlx-whisper),各自懒加载、单例 |
+| `voicetranser/launchd.py` | 按当前 checkout 生成 launchd plist,避免把作者本机路径带给用户 |
+| `install_launchd.py` | 生成并加载当前用户的 launchd 服务(`--no-load` 只生成) |
 | `voicetranser/server.py` | HTTP toggle 服务器。`/toggle` `/start` `/stop` `/status`,状态机 + 后台转写线程 |
 | `voicetranser/corrector.py` | STT 误识词纠正(转写后、输出前)。纯整词匹配、大小写不敏感,词表来自 `corrections.json`,支持多 token 短语(如 `claude code`) |
 | `voicetranser/watchdog.py` | CoreAudio 死锁看门狗:建流/start/stop 超时(默认 5s)即 `os._exit`,由 launchd KeepAlive 秒级拉起自愈 |
@@ -87,28 +89,30 @@ idle ◄───────────────── recording ◄──�
 | `voicetranser/status.py` | macOS 系统通知 + 音效反馈(afplay 异步,不阻塞 handler) |
 | `voicetranser/hotkey.py` | ⚠️ **已废弃**(pynput push-to-talk,被 HTTP server 取代,`pynput` 不在依赖里,别用) |
 | `download_model.py` | 下 SenseVoice 模型到 `models/sense-voice/`(hf-mirror 源,幂等) |
-| `com.voicetranser-sense.plist` | launchd 配置示例(作者本机用,端口 9877 + sensevoice) |
+| `com.voicetranser-sense.plist` | 作者本机示例,不要直接复制给其他用户;用 `install_launchd.py` 生成 |
 | `tests/diagnose.py` | 诊断脚本,逐层检查 8 项健康状态,支持 `--fix` 自动重启 |
 | `VoiceTranser.app/` | .app bundle 壳(仅授权用,内部 `cd` 到项目目录跑 `python -m voicetranser`) |
 
 ---
 
-## 3. 双引擎说明
+## 3. 三引擎说明
 
-两个 STT 引擎可切换,**默认 SenseVoice**:
+三个 STT 引擎可切换,**默认 Qwen3-ASR MLX**:
 
 | 引擎 | 适合语种 | 模型大小 | 常驻内存 | 15 秒中文推理 | 切换方式 |
 |------|----------|----------|----------|---------------|----------|
-| **SenseVoice**(默认) | 中文为主、中英日韩粤 | 228MB | ~400MB | **~0.46 秒**(RTF 0.03) | `STT_ENGINE=sensevoice` |
+| **Qwen3-ASR 0.6B 4bit**(默认) | 中文、中英夹杂、粤语/方言 | ~500MB | ~1.5GB | **~0.25 秒**(RTF≈0.015) | `STT_ENGINE=qwen3-mlx` |
+| **SenseVoice** | 中文为主、中英日韩粤 | 228MB | ~400MB | **~0.46 秒**(RTF 0.03) | `STT_ENGINE=sensevoice` |
 | **mlx-whisper large-v3** | 英文/小语种、长音频 | 3GB | ~3GB | ~1.08 秒(RTF 0.07) | `STT_ENGINE=mlx-whisper` |
 
-**怎么选**:中文场景默认 SenseVoice 就对了(速度快 2 倍 + 标点地道 + 内存省 7 倍)。英文为主再切 mlx-whisper。
+**怎么选**:中文默认 Qwen3-MLX；机器不支持 MLX 或想省内存时切 SenseVoice；英文/小语种再切 mlx-whisper。
 
 **技术差异**:
+- Qwen3-MLX:mlx-audio + 0.6B 4bit,MLX/Metal 推理,带标点与上下文纠错
 - SenseVoice:非自回归并行解码,sherpa-onnx + int8 量化模型,初始化时 `language="auto"` 自动判语种
 - mlx-whisper:自回归,MLX/Metal 优化,代码里已设 `mx.set_cache_limit(1GB)` 防止 Metal buffer 缓存无限增长(否则长期运行能涨到 14GB)
 
-两个引擎各自懒加载、单例,互不 import —— 只用其中一个的实例不必装另一个的依赖。
+三个引擎各自懒加载、单例,互不 import —— 只用其中一个的实例不必加载另外两个的模型。
 
 ---
 
@@ -153,9 +157,9 @@ uv sync          # 自动建虚拟环境、装全部依赖
 
 > ⚠️ `sherpa-onnx` 锁定在 `==1.10.46`(自包含 wheel)。1.13.x 的 PyPI 瘦版缺 onnxruntime dylib,会崩。别擅自升级。
 
-### 第 3 步:下载语音模型(228MB,一次性)
+### 第 3 步:准备语音模型
 
-默认用 **SenseVoice**(中文场景最佳):
+默认的 **Qwen3-ASR MLX** 会在首次转写时自动下载（约 500MB，走 `HF_ENDPOINT`）。再下 SenseVoice 作为 CPU fallback（228MB）：
 
 ```bash
 uv run python download_model.py
@@ -184,7 +188,7 @@ cp .env.example .env
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `STT_ENGINE` | `sensevoice` | `sensevoice`(中文秒出)/ `mlx-whisper`(英文/小语种更强) |
+| `STT_ENGINE` | `qwen3-mlx` | `qwen3-mlx`(默认，中文最优)/ `sensevoice`(CPU fallback)/ `mlx-whisper`(英文/小语种) |
 | `WHISPER_MODEL` | `large-v3` | 仅 `STT_ENGINE=mlx-whisper` 时生效。可选 `tiny`/`base`/`small`/`medium`/`large-v3` |
 | `SERVER_PORT` | `9876` | HTTP 服务端口,改了要同步改热键配置 |
 | `SAMPLE_RATE` | `16000` | 采样率,别动 |
@@ -224,7 +228,6 @@ uv run python -m voicetranser
 看到类似输出就成功了:
 
 ```
-[VoiceTranser] STT 引擎: sensevoice
 [VoiceTranser] HTTP server listening on 127.0.0.1:9876
   GET /start   — start recording
   GET /stop    — stop recording & process
@@ -332,73 +335,33 @@ curl -s http://localhost:9876/stop
 
 用 macOS 原生的 **launchd** 让 VoiceTranser 开机自动后台运行、崩溃自动重启。
 
-### 8.1 生成 plist
+### 8.1 生成并加载
 
-先查你的用户名和项目绝对路径:
-
-```bash
-whoami        # 用户名,如 sarah
-pwd           # 项目绝对路径,如 /Users/sarah/VoiceTranser
-```
-
-创建 `~/Library/LaunchAgents/com.voicetranser.plist`(**替换两处 `<...>`**):
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.voicetranser</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string><YOUR_PROJECT_PATH>/.venv/bin/python3</string>
-        <string>-m</string>
-        <string>voicetranser</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string><YOUR_PROJECT_PATH></string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>STT_ENGINE</key>
-        <string>sensevoice</string>
-        <key>SERVER_PORT</key>
-        <string>9876</string>
-        <key>HF_ENDPOINT</key>
-        <string>https://hf-mirror.com</string>
-    </dict>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/Users/<YOUR_USERNAME>/Library/Logs/VoiceTranser.log</string>
-    <key>StandardErrorPath</key>
-    <string>/Users/<YOUR_USERNAME>/Library/Logs/VoiceTranser.log</string>
-</dict>
-</plist>
-```
-
-> 项目根的 `com.voicetranser-sense.plist` 是作者本机用的示例(端口 9877 + sensevoice,路径硬编码),可参考但别直接用 —— 路径是别人的。
-
-### 8.2 加载并启动
+在项目根目录执行:
 
 ```bash
-# 加载(立即启动,因为 RunAtLoad=true)
-launchctl load ~/Library/LaunchAgents/com.voicetranser.plist
+uv run python install_launchd.py
+```
 
-# 验证在跑
-curl http://localhost:9876/status
+脚本会按**当前 checkout 的绝对路径**生成
+`~/Library/LaunchAgents/com.voicetranser-sense.plist`，写入当前用户日志路径，
+卸载旧实例后重新加载。默认端口 9877、引擎 qwen3-mlx；需要改时用
+`--port` / `--engine`，只生成不加载用 `--no-load`。
+
+```bash
+curl http://localhost:9877/status
 # 期望: {"status": "idle"}
 ```
 
-### 8.3 launchd 常用命令
+> 项目根的 `com.voicetranser-sense.plist` 是作者本机示例，路径写死，**不要直接复制给其他用户**。用 `install_launchd.py` 生成。
+
+### 8.2 launchd 常用命令
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.voicetranser.plist      # 启用
-launchctl unload ~/Library/LaunchAgents/com.voicetranser.plist    # 停用
-launchctl kickstart -k gui/$(id -u)/com.voicetranser               # 重启服务
-tail -f ~/Library/Logs/VoiceTranser.log                            # 看日志
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.voicetranser-sense.plist  # 启用
+launchctl bootout gui/$(id -u)/com.voicetranser-sense                                 # 停用
+launchctl kickstart -k gui/$(id -u)/com.voicetranser-sense                            # 重启服务
+tail -f ~/Library/Logs/VoiceTranser-sense.log                                         # 看日志
 ```
 
 > ⚠️ **路径是最大的坑**。launchd 启动失败 99% 是 plist 里路径写错。验证:
@@ -455,13 +418,13 @@ uv run python -m unittest discover tests -v
 
 **转写成功但不自动粘贴** → **辅助功能权限没授**。系统设置 → 隐私与安全性 → 辅助功能,把终端/python 打开。launchd 启动的实例要单独授一次(列表里会出现 `python`/`Python` 条目)。
 
-**没反应 / curl 报连接拒绝** → 服务没起来。`tail -f ~/Library/Logs/VoiceTranser.log` 看报错。常见:端口被占(改 `SERVER_PORT`)、模型没下(跑 `download_model.py`)。
+**没反应 / curl 报连接拒绝** → 服务没起来。`tail -f ~/Library/Logs/VoiceTranser-sense.log` 看报错。常见:端口被占(改 `SERVER_PORT`)、模型没下(跑 `download_model.py`)。
 
 **麦克风没声音 / 录到空白** → 麦克风权限没授。系统设置 → 隐私与安全性 → 麦克风。
 
 **开机自启不生效 / launchd 反复崩** → 99% 是 plist 里的**路径写错了**。检查 `<YOUR_PROJECT_PATH>` 和 `.venv/bin/python3` 是否真实存在:`ls <YOUR_PROJECT_PATH>/.venv/bin/python3`。
 
-**音频报错 `-9986` / PortAudio 异常** → macOS 休眠后音频子系统状态损坏、蓝牙耳机切换、虚拟音频驱动冲突。代码内置看门狗(`watchdog.py`):音频操作超时 5 秒进程自动退出、launchd 秒级拉起,多数情况无感自愈;若连续失败,`launchctl kickstart -k gui/$(id -u)/com.voicetranser` 手动重启。
+**音频报错 `-9986` / PortAudio 异常** → macOS 休眠后音频子系统状态损坏、蓝牙耳机切换、虚拟音频驱动冲突。代码内置看门狗(`watchdog.py`):音频操作超时 5 秒进程自动退出、launchd 秒级拉起,多数情况无感自愈;若连续失败,`launchctl kickstart -k gui/$(id -u)/com.voicetranser-sense` 手动重启。
 
 **内存占用高(mlx-whisper 引擎)** → mlx-whisper large-v3 常驻 ~3GB 属正常(SenseVoice 只占 400MB)。代码里已设 `mx.set_cache_limit(1GB)` 防止 Metal 缓存无限增长。中文场景换 SenseVoice 即可。
 
@@ -470,10 +433,10 @@ uv run python -m unittest discover tests -v
 ## 12. 卸载
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.voicetranser.plist
-rm ~/Library/LaunchAgents/com.voicetranser.plist
+launchctl bootout gui/$(id -u)/com.voicetranser-sense
+rm ~/Library/LaunchAgents/com.voicetranser-sense.plist
 rm -rf ~/VoiceTranser                       # 项目目录
-rm ~/Library/Logs/VoiceTranser.log
+rm ~/Library/Logs/VoiceTranser-sense.log
 ```
 
 到系统设置里手动移除辅助功能 / 麦克风权限里的相关条目即可。
@@ -484,7 +447,7 @@ rm ~/Library/Logs/VoiceTranser.log
 
 | 组件 | 技术 |
 |------|------|
-| STT | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) + SenseVoice(默认)/ [mlx-whisper](https://github.com/ml-explore/mlx-whisper)(fallback) |
+| STT | [mlx-audio](https://github.com/Blaizzy/mlx-audio) + Qwen3-ASR(默认) / [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) + SenseVoice / [mlx-whisper](https://github.com/ml-explore/mlx-whisper) |
 | 音频录制 | [sounddevice](https://python-sounddevice.readthedocs.io/) + numpy |
 | HTTP 服务器 | Python 标准库 `http.server`(`ThreadingHTTPServer`) |
 | 剪贴板 | [pyperclip](https://github.com/asweigart/pyperclip) |
