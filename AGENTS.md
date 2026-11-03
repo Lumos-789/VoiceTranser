@@ -26,7 +26,7 @@
 
 主力 plist：`com.voicetranser-sense.plist`(项目根)，同步装到 `~/Library/LaunchAgents/`，日志 `~/Library/Logs/VoiceTranser-sense.log`。**路径已修正为 `/Users/black-wood/IdeaProjects/myProjects/VoiceTranser`**（之前写错少一层 `myProjects`，导致重启后 launchd 找不到 python、`EX_CONFIG` 反复崩）。
 
-**老实例收尾（2026-08-23 完成）**：已删 `~/Library/LaunchAgents/com.voicetranser.plist` 并 bootout（其路径仍指向旧 `/IdeaProjects/VoiceTranser`，每次开机以 exit 78 空转）；`.env` 去掉 `STT_ENGINE=mlx-whisper` 锁定；Karabiner 删 `right_command`→9876 规则（删前备份 `.zcode/tmp/karabiner.json.bak-20260823`）。如需恢复 mlx-whisper：改用 `STT_ENGINE=mlx-whisper` 起新实例或临时命令行运行。
+**老实例收尾（2026-08-23 完成）**：已删旧的 LaunchAgents plist（com.voicetranser.plist，位于 `~/Library/LaunchAgents/`，已移除）并 bootout（其路径仍指向旧 `/IdeaProjects/VoiceTranser`，每次开机以 exit 78 空转）；`.env` 去掉 `STT_ENGINE=mlx-whisper` 锁定；Karabiner 删 `right_command`→9876 规则（删前备份 `.zcode/tmp/karabiner.json.bak-20260823`）。如需恢复 mlx-whisper：改用 `STT_ENGINE=mlx-whisper` 起新实例或临时命令行运行。
 
 ## 架构
 
