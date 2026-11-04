@@ -8,8 +8,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from voicetranser.config import DEFAULT_SERVER_PORT
+
 LABEL = "com.voicetranser-sense"
-DEFAULT_PORT = 9877
 DEFAULT_ENGINE = "qwen3-mlx"
 
 
@@ -18,7 +19,7 @@ def build_plist(
     *,
     python: Path | None = None,
     home: Path | None = None,
-    port: int = DEFAULT_PORT,
+    port: int = DEFAULT_SERVER_PORT,
     engine: str = DEFAULT_ENGINE,
 ) -> dict[str, Any]:
     """Build a plist whose paths point at this checkout, not the author's Mac."""
@@ -49,7 +50,7 @@ def write_plist(
     dest: Path | None = None,
     python: Path | None = None,
     home: Path | None = None,
-    port: int = DEFAULT_PORT,
+    port: int = DEFAULT_SERVER_PORT,
     engine: str = DEFAULT_ENGINE,
 ) -> Path:
     home_dir = (home or Path.home()).expanduser().absolute()

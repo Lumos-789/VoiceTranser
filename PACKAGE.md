@@ -190,7 +190,7 @@ cp .env.example .env
 |------|------|------|
 | `STT_ENGINE` | `qwen3-mlx` | `qwen3-mlx`(默认，中文最优)/ `sensevoice`(CPU fallback)/ `mlx-whisper`(英文/小语种) |
 | `WHISPER_MODEL` | `large-v3` | 仅 `STT_ENGINE=mlx-whisper` 时生效。可选 `tiny`/`base`/`small`/`medium`/`large-v3` |
-| `SERVER_PORT` | `9876` | HTTP 服务端口,改了要同步改热键配置 |
+| `SERVER_PORT` | `9877` | HTTP 服务端口,改了要同步改热键配置 |
 | `SAMPLE_RATE` | `16000` | 采样率,别动 |
 | `LANGUAGE` | `zh` | 识别语言(sensevoice 用 auto 自动判,这个主要给 whisper) |
 | `HF_ENDPOINT` | `https://hf-mirror.com` | 模型下载源,海外可改 `https://huggingface.co` |
@@ -228,7 +228,7 @@ uv run python -m voicetranser
 看到类似输出就成功了:
 
 ```
-[VoiceTranser] HTTP server listening on 127.0.0.1:9876
+[VoiceTranser] HTTP server listening on 127.0.0.1:9877
   GET /start   — start recording
   GET /stop    — stop recording & process
   GET /toggle  — toggle start/stop
@@ -238,8 +238,8 @@ uv run python -m voicetranser
 **手动测试**(新开一个终端窗口):
 
 ```bash
-curl http://localhost:9876/start     # 开始录音,对着麦克风说几句话
-curl http://localhost:9876/stop      # 停止 → 自动转写 → 自动粘贴到当前光标
+curl http://localhost:9877/start     # 开始录音,对着麦克风说几句话
+curl http://localhost:9877/stop      # 停止 → 自动转写 → 自动粘贴到当前光标
 ```
 
 转写结果会自动粘到你当前光标所在的输入框。按 `Ctrl+C` 停掉服务。
@@ -288,10 +288,10 @@ SERVER_PORT=9877 STT_ENGINE=sensevoice uv run python -m voicetranser
           "type": "basic",
           "from": { "key_code": "right_option" },
           "to": [
-            { "shell_command": "curl -s http://localhost:9876/start >/dev/null 2>&1 &" }
+            { "shell_command": "curl -s http://localhost:9877/start >/dev/null 2>&1 &" }
           ],
           "to_after_key_up": [
-            { "shell_command": "curl -s http://localhost:9876/stop >/dev/null 2>&1 &" }
+            { "shell_command": "curl -s http://localhost:9877/stop >/dev/null 2>&1 &" }
           ]
         }
       ]
@@ -302,7 +302,7 @@ SERVER_PORT=9877 STT_ENGINE=sensevoice uv run python -m voicetranser
 
 3. 保存后回到 Karabiner Settings → Complex Modifications → **Add rule**,启用「右 Option 按住说话」
 
-> 端口不是 9876?把 JSON 里的 `9876` 全换成你的 `SERVER_PORT`。
+> 端口与默认不同?把 JSON 里的 `9877` 全换成你的 `SERVER_PORT`。
 > 想换键?`right_option` 可改成 `right_command` / `fn` / `caps_lock` 等。
 
 ### 方案 B:Raycast(免费,不想装 Karabiner 的选这个)
@@ -312,11 +312,11 @@ SERVER_PORT=9877 STT_ENGINE=sensevoice uv run python -m voicetranser
 ```bash
 #!/bin/bash
 # 开始录音
-curl -s http://localhost:9876/start
+curl -s http://localhost:9877/start
 
 #!/bin/bash
 # 停止转写
-curl -s http://localhost:9876/stop
+curl -s http://localhost:9877/stop
 ```
 
 > 局限:Raycast 不支持「按住/松开」,只能两个命令各绑一个快捷键,体验不如 Karabiner 的按住式。
@@ -324,7 +324,7 @@ curl -s http://localhost:9876/stop
 ### 方案 C:系统快捷指令(最简,macOS 自带)
 
 1. 打开「快捷指令」→ 新建快捷指令
-2. 动作选「运行 Shell 脚本」,内容填 `curl -s http://localhost:9876/toggle`
+2. 动作选「运行 Shell 脚本」,内容填 `curl -s http://localhost:9877/toggle`
 3. 右侧 ⚙️ → 添加键盘快捷键 → 按一个组合键(如 `F5`)
 
 > 这是 toggle 模式(按一下开始,再按一下停止),不是按住式。
@@ -374,7 +374,7 @@ tail -f ~/Library/Logs/VoiceTranser-sense.log                                   
 
 ## 9. HTTP API 速查
 
-守护模式启动后监听 `http://127.0.0.1:<SERVER_PORT>`(默认 9876):
+守护模式启动后监听 `http://127.0.0.1:<SERVER_PORT>`(默认 9877):
 
 | 端点 | 方法 | 说明 | 返回 |
 |------|------|------|------|
@@ -409,7 +409,9 @@ tail -f ~/Library/Logs/VoiceTranser-sense.log                                   
 .venv/bin/python tests/diagnose.py --fix            # 检查 + 自动重启修复
 ```
 
-音频检查先查 TCC 授权状态(只读，不弹授权框)，未授权绝不打开输入流；已授权才在子进程开流并硬超时 3s，超时强杀。被跳过的检查在汇总里标为「跳过(未验证)」，退出码非 0，不会冒充全绿。HTTP 端口按应用配置解析(`--port` > `SERVER_PORT`/`.env` > 默认 9876)；launchd 实例在 plist 里设了别的端口时用 `--port` 指定。
+音频检查先查 TCC 授权状态(只读，不弹授权框)，未授权绝不打开输入流；已授权才在子进程开流并硬超时 3s，超时强杀。被跳过的检查在汇总里标为「跳过(未验证)」，退出码非 0，不会冒充全绿。
+
+诊断端口按实际运行的实例解析：`--port` > `SERVER_PORT` 环境变量 > 已安装 launchd plist 的 `SERVER_PORT` > 项目 `.env` > 默认端口（`config.DEFAULT_SERVER_PORT`，9877）。plist 与默认不一致时会打印 WARNING 并列出两个数字；麦克风不能碰时用 `--skip-audio`。
 
 单元测试(纠正词表 / 诊断脚本 / 服务器状态机 / 看门狗):
 

@@ -61,6 +61,8 @@ uv run python -m voicetranser --file recording.wav --no-paste
 .venv/bin/python tests/diagnose.py --skip-audio
 ```
 
+诊断按实际运行的实例解析端口：`--port` > `SERVER_PORT` 环境变量 > 已安装 launchd plist 的 `SERVER_PORT` > 项目 `.env` > 默认端口（`config.DEFAULT_SERVER_PORT`，9877）；plist 与默认不一致时会打印 WARNING。麦克风不能碰时用 `--skip-audio`。
+
 ### 全局热键（推荐 Karabiner-Elements）
 
 Karabiner complex_modifications 配置：`right_option` 按下 → `curl localhost:9877/start`，松开 → `curl localhost:9877/stop`。按住说话、松开自动转写粘贴。也可用 Raycast/Hammerspoon 触发 `/toggle`。
@@ -80,7 +82,7 @@ curl -s localhost:9877/status
 
 ## HTTP 端点
 
-守护模式启动后监听 `http://127.0.0.1:9876`（默认；launchd 实例为 9877）：
+守护模式启动后监听 `http://127.0.0.1:9877`（默认；`SERVER_PORT` 可覆盖）：
 
 | 端点 | 说明 |
 |------|------|

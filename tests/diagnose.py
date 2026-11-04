@@ -98,28 +98,91 @@ def check_process() -> tuple[bool, int | None]:
     return False, None
 
 
-def resolve_server_port(cli_port: int | None = None) -> int:
-    """解析守护进程实际监听的端口: --port > 应用配置(SERVER_PORT/.env/默认)。
+LAUNCH_AGENT_LABEL = "com.voicetranser-sense"
+_DOTENV_PATH = _ROOT / ".env"
 
-    应用默认是 config.DEFAULT_SERVER_PORT(9876)；旧端口上的实例可能还活着，
-    按写死端口诊断会拿到错误进程的绿色结果。
-    """
-    if cli_port is not None:
-        return cli_port
-    from voicetranser.config import DEFAULT_SERVER_PORT, load_config
 
+def launch_agent_plist_path(home: Path | None = None) -> Path:
+    """已安装 launchd agent 的 plist 路径（测试可用 fake HOME 隔离）。"""
+    base = home or Path.home()
+    return base / "Library" / "LaunchAgents" / f"{LAUNCH_AGENT_LABEL}.plist"
+
+
+def read_launch_agent_port(plist_path: Path | None = None) -> int | None:
+    """读已安装 plist 的 EnvironmentVariables.SERVER_PORT；不存在返回 None。"""
+    path = plist_path or launch_agent_plist_path()
+    if not path.is_file():
+        return None
     try:
-        return load_config().server_port
-    except ImportError as exc:
-        warn(f"读取应用配置失败（{exc}），退回 SERVER_PORT/默认 {DEFAULT_SERVER_PORT}")
-        raw = os.getenv("SERVER_PORT")
-        return int(raw) if raw else DEFAULT_SERVER_PORT
+        import plistlib
+
+        payload = plistlib.loads(path.read_bytes())
+        raw = (payload.get("EnvironmentVariables") or {}).get("SERVER_PORT")
+        return int(raw) if raw is not None else None
+    except Exception as exc:
+        warn(f"读取 launchd plist 失败（{path}）: {exc}")
+        return None
+
+
+def _dotenv_server_port() -> int | None:
+    """项目 .env 的 SERVER_PORT；用 dotenv_values 读，避免污染 os.environ。"""
+    if not _DOTENV_PATH.is_file():
+        return None
+    try:
+        from dotenv import dotenv_values
+
+        raw = dotenv_values(_DOTENV_PATH).get("SERVER_PORT")
+    except Exception as exc:
+        warn(f"读取 .env 失败（{_DOTENV_PATH}）: {exc}")
+        return None
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        warn(f".env 的 SERVER_PORT 不是整数: {raw!r}")
+        return None
+
+
+def resolve_server_port(
+    cli_port: int | None = None, *, plist_path: Path | None = None
+) -> tuple[int, str]:
+    """解析守护进程实际监听的端口，返回 (端口, 来源)。
+
+    顺序: --port > SERVER_PORT 环境变量 > 已安装 launchd plist 的
+    SERVER_PORT > 项目 .env > config.DEFAULT_SERVER_PORT。
+    plist 与默认值不一致时必须告警 —— 这正是健康服务被诊断成“死了”的根因。
+    """
+    from voicetranser.config import DEFAULT_SERVER_PORT
+
+    agent_path = plist_path or launch_agent_plist_path()
+    agent_port = read_launch_agent_port(agent_path)
+
+    if cli_port is not None:
+        port, source = cli_port, "--port"
+    elif os.getenv("SERVER_PORT"):
+        port, source = int(os.environ["SERVER_PORT"]), "SERVER_PORT 环境变量"
+    elif agent_port is not None:
+        port, source = agent_port, "launchd plist"
+    elif (dotenv_port := _dotenv_server_port()) is not None:
+        port, source = dotenv_port, ".env"
+    else:
+        port, source = DEFAULT_SERVER_PORT, f"应用默认 {DEFAULT_SERVER_PORT}"
+
+    if agent_port is not None and agent_port != DEFAULT_SERVER_PORT:
+        warn(
+            "WARNING: launchd plist "
+            f"({agent_path}) 的 SERVER_PORT={agent_port} 与应用默认端口 "
+            f"{DEFAULT_SERVER_PORT} 不一致；本次诊断使用 {port}（来源: {source}）"
+        )
+    return port, source
 
 
 def check_http_server(port: int | None = None) -> bool:
-    """3. HTTP 服务器是否响应(端口按应用配置解析，不用写死值)。"""
+    """3. HTTP 服务器是否响应(端口按运行实例解析，不用写死值)。"""
     header("HTTP 服务器")
-    port = resolve_server_port(port)
+    port, source = resolve_server_port(port)
+    print(f"  端口: {port}（来源: {source}）")
     try:
         result = subprocess.run(
             ["curl", "-s", "--max-time", "3", f"http://127.0.0.1:{port}/status"],
@@ -135,7 +198,6 @@ def check_http_server(port: int | None = None) -> bool:
             fail(f"端口 {port} 空响应（handler 内部崩溃）")
         elif result.returncode == 7:
             fail(f"端口 {port} 连接被拒（进程未监听）")
-            warn("端口按应用配置解析; launchd 实例在 plist 里设了别的 SERVER_PORT 时用 --port 指定")
         else:
             fail(f"响应异常 (exit {result.returncode}): {body or result.stderr.strip()}")
         return False
@@ -517,7 +579,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--port",
         type=int,
         default=None,
-        help="HTTP 端口；默认按应用配置 SERVER_PORT -> .env -> 9876",
+        help="HTTP 端口；默认按运行实例解析（--port > SERVER_PORT > launchd plist > .env > 默认）",
     )
     return parser.parse_args(argv)
 

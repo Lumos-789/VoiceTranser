@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Single source of truth for the daemon's default HTTP port. The CLI server,
-# load_config and tests/diagnose.py all resolve through this constant.
-DEFAULT_SERVER_PORT = 9876
+# launchd installer and tests/diagnose.py all resolve through this constant.
+DEFAULT_SERVER_PORT = 9877
 
 
 @dataclass(frozen=True)

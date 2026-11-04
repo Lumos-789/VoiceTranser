@@ -5,10 +5,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from voicetranser.config import DEFAULT_SERVER_PORT
 from voicetranser.launchd import LABEL, build_plist, write_plist
 
 
 class TestLaunchdPlist(unittest.TestCase):
+    def test_default_port_is_the_application_config_default(self) -> None:
+        payload = build_plist(Path("/tmp/VoiceTranser-checkout"))
+        self.assertEqual(
+            payload["EnvironmentVariables"]["SERVER_PORT"], str(DEFAULT_SERVER_PORT)
+        )
+
     def test_paths_follow_the_checkout_and_user_home(self) -> None:
         root = Path("/tmp/VoiceTranser-checkout")
         home = Path("/tmp/VoiceTranser-home")

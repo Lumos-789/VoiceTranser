@@ -17,7 +17,9 @@ import importlib.util
 import io
 import json
 import os
+import plistlib
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -28,7 +30,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from voicetranser.config import Config  # noqa: E402
+from voicetranser.config import Config, DEFAULT_SERVER_PORT  # noqa: E402
 
 
 def _load_diagnose():
@@ -85,25 +87,100 @@ def _capture(fn, *args, **kwargs):
     return result, out.getvalue()
 
 
+def _clean_env(**overrides: str) -> dict[str, str]:
+    env = {k: v for k, v in os.environ.items() if k != "SERVER_PORT"}
+    env.update(overrides)
+    return env
+
+
+@contextlib.contextmanager
+def _fake_home(plist_port: int | None = None):
+    """临时 HOME；plist_port 非空时写入已安装的 launchd plist。"""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        if plist_port is not None:
+            plist = home / "Library" / "LaunchAgents" / f"{diagnose.LAUNCH_AGENT_LABEL}.plist"
+            plist.parent.mkdir(parents=True)
+            plist.write_bytes(
+                plistlib.dumps(
+                    {
+                        "Label": diagnose.LAUNCH_AGENT_LABEL,
+                        "EnvironmentVariables": {"SERVER_PORT": str(plist_port)},
+                    }
+                )
+            )
+        yield home
+
+
 class TestServerPortResolution(unittest.TestCase):
-    """FIX 2: diagnose 必须按应用配置解析端口，不能用写死的 9877。"""
+    """FIX 2: --port > SERVER_PORT env > launchd plist > .env > default."""
 
     def test_default_port_is_the_application_config_default(self) -> None:
-        env = {k: v for k, v in os.environ.items() if k != "SERVER_PORT"}
-        with mock.patch.dict(os.environ, env, clear=True):
-            port = diagnose.resolve_server_port()
+        with _fake_home() as home:
+            env = _clean_env(HOME=str(home))
+            with mock.patch.dict(os.environ, env, clear=True):
+                port, source = diagnose.resolve_server_port()
         self.assertEqual(port, Config().server_port)
-        self.assertEqual(port, 9876)
+        self.assertEqual(port, DEFAULT_SERVER_PORT)
+        self.assertEqual(port, 9877)
+        self.assertIn("应用默认", source)
 
-    def test_server_port_env_override_wins(self) -> None:
-        with mock.patch.dict(os.environ, {"SERVER_PORT": "9123"}):
-            self.assertEqual(diagnose.resolve_server_port(), 9123)
+    def test_server_port_env_override_wins_over_plist(self) -> None:
+        with _fake_home(9124) as home:
+            env = _clean_env(HOME=str(home), SERVER_PORT="9123")
+            with mock.patch.dict(os.environ, env, clear=True):
+                (port, source), output = _capture(diagnose.resolve_server_port)
+        self.assertEqual(port, 9123)
+        self.assertIn("环境变量", source)
+        self.assertIn("WARNING", output)
 
     def test_explicit_port_wins_over_everything(self) -> None:
-        with mock.patch.dict(os.environ, {"SERVER_PORT": "9123"}):
-            self.assertEqual(diagnose.resolve_server_port(9450), 9450)
+        with _fake_home(9124) as home:
+            env = _clean_env(HOME=str(home), SERVER_PORT="9123")
+            with mock.patch.dict(os.environ, env, clear=True):
+                (port, source), output = _capture(
+                    diagnose.resolve_server_port, 9450
+                )
+        self.assertEqual(port, 9450)
+        self.assertEqual(source, "--port")
+        self.assertIn("WARNING", output)
 
-    def test_http_check_probes_the_resolved_port(self) -> None:
+    def test_installed_plist_port_wins_over_default_and_warns(self) -> None:
+        with _fake_home(9124) as home:
+            env = _clean_env(HOME=str(home))
+            with mock.patch.dict(os.environ, env, clear=True):
+                (port, source), output = _capture(diagnose.resolve_server_port)
+        self.assertEqual(port, 9124)
+        self.assertEqual(source, "launchd plist")
+        self.assertIn("WARNING", output)
+        self.assertIn("9124", output)
+        self.assertIn("9877", output)
+
+    def test_plist_wins_over_project_dotenv(self) -> None:
+        with _fake_home(9124) as home, tempfile.TemporaryDirectory() as tmp:
+            dotenv_path = Path(tmp) / ".env"
+            dotenv_path.write_text("SERVER_PORT=9125\n", encoding="utf-8")
+            env = _clean_env(HOME=str(home))
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+                diagnose, "_DOTENV_PATH", dotenv_path
+            ):
+                (port, source), _ = _capture(diagnose.resolve_server_port)
+        self.assertEqual(port, 9124)
+        self.assertEqual(source, "launchd plist")
+
+    def test_project_dotenv_used_when_no_plist(self) -> None:
+        with _fake_home() as home, tempfile.TemporaryDirectory() as tmp:
+            dotenv_path = Path(tmp) / ".env"
+            dotenv_path.write_text("SERVER_PORT=9125\n", encoding="utf-8")
+            env = _clean_env(HOME=str(home))
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+                diagnose, "_DOTENV_PATH", dotenv_path
+            ):
+                port, source = diagnose.resolve_server_port()
+        self.assertEqual(port, 9125)
+        self.assertEqual(source, ".env")
+
+    def test_http_check_probes_resolved_port(self) -> None:
         server, port = _serve_status()
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)
@@ -112,6 +189,21 @@ class TestServerPortResolution(unittest.TestCase):
         self.assertTrue(passed)
         self.assertIn(str(port), output)
         self.assertIn("idle", output)
+
+    def test_http_check_uses_plist_port_and_warns_on_mismatch(self) -> None:
+        server, port = _serve_status()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.assertNotEqual(port, DEFAULT_SERVER_PORT)
+        with _fake_home(port) as home:
+            env = _clean_env(HOME=str(home))
+            with mock.patch.dict(os.environ, env, clear=True):
+                passed, output = _capture(diagnose.check_http_server)
+        self.assertTrue(passed)
+        self.assertIn(f"端口: {port}", output)
+        self.assertIn("launchd plist", output)
+        self.assertIn("WARNING", output)
+        self.assertIn(str(DEFAULT_SERVER_PORT), output)
 
 
 class TestAudioCheck(unittest.TestCase):

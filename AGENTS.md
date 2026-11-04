@@ -65,7 +65,7 @@ External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (sen
 
 - `STT_ENGINE=qwen3-mlx|sensevoice|mlx-whisper`(默认 qwen3-mlx)
 - `WHISPER_MODEL=large-v3`(仅 mlx-whisper 用)
-- `SERVER_PORT=9876`(默认；主力实例 9877)
+- `SERVER_PORT=9877`(默认；可覆盖)
 - `SAMPLE_RATE=16000` / `LANGUAGE=zh`
 - `VT_AUDIO_WATCHDOG_TIMEOUT=5`(秒；音频流操作超时即自杀重启，勿设太小以免唤醒后冷启动误杀)
 
@@ -75,7 +75,7 @@ External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (sen
 # 首次：下 SenseVoice 模型(228MB，hf-mirror 国内源；qwen3-mlx 模型首次运行自动拉)
 uv run python download_model.py
 
-# 守护(默认 qwen3-mlx，9876)
+# 守护(默认 qwen3-mlx，9877)
 uv run python -m voicetranser
 
 # 临时用 sensevoice / mlx-whisper 跑

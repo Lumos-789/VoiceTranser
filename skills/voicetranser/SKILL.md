@@ -13,7 +13,7 @@ Fully local (zero external APIs). Repo: https://github.com/Lumos-789/VoiceTranse
 - Target: macOS **Apple Silicon** (the default engine needs MLX/Metal; Intel Macs fall back to the CPU engine).
 - Stack: Python 3.11+ managed by **uv**; HTTP server (stdlib); launchd service; Karabiner-Elements hotkey.
 - Engines (`STT_ENGINE`): `qwen3-mlx` (default, Qwen3-ASR 0.6B 4bit via mlx-audio, RTF≈0.015, best zh quality, punctuated) → `sensevoice` (CPU fallback, RTF≈0.03) → `mlx-whisper` (en/exotic languages).
-- Ports: default 9876; the documented launchd instance uses **9877**.
+- Port: **9877** by default (`config.DEFAULT_SERVER_PORT`). Diagnose resolves the instance that should be running: `--port` > `SERVER_PORT` env > installed launchd plist > project `.env` > default; it prints a WARNING when the plist and default disagree. If the mic is off-limits, use `--skip-audio`.
 - Model files: SenseVoice 228 MB via `download_model.py` (hf-mirror); Qwen3-ASR ~500 MB auto-fetched on first run (respects `HF_ENDPOINT`).
 
 ## Install flow (do these in order, verify each step)

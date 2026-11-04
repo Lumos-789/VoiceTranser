@@ -8,9 +8,9 @@ import plistlib
 import sys
 from pathlib import Path
 
+from voicetranser.config import DEFAULT_SERVER_PORT
 from voicetranser.launchd import (
     DEFAULT_ENGINE,
-    DEFAULT_PORT,
     LABEL,
     build_plist,
     load_plist,
@@ -21,7 +21,7 @@ from voicetranser.launchd import (
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dest", type=Path, help="plist output path")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--port", type=int, default=DEFAULT_SERVER_PORT)
     parser.add_argument("--engine", default=DEFAULT_ENGINE)
     parser.add_argument("--no-load", action="store_true", help="write only")
     parser.add_argument("--dry-run", action="store_true", help="print plist only")
