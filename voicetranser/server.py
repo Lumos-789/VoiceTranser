@@ -8,6 +8,8 @@ import threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from typing import TYPE_CHECKING
 
+from voicetranser.config import DEFAULT_SERVER_PORT
+
 if TYPE_CHECKING:
     from voicetranser.config import Config
     from voicetranser.recorder import Recorder
@@ -153,7 +155,7 @@ class VoiceServer:
         recorder: Recorder,
         status: StatusDisplay,
         host: str = "127.0.0.1",
-        port: int = 9876,
+        port: int = DEFAULT_SERVER_PORT,
     ) -> None:
         _ctx.recorder = recorder
         _ctx.status = status

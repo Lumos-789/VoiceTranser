@@ -6,7 +6,9 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dotenv import load_dotenv
+# Single source of truth for the daemon's default HTTP port. The CLI server,
+# load_config and tests/diagnose.py all resolve through this constant.
+DEFAULT_SERVER_PORT = 9876
 
 
 @dataclass(frozen=True)
@@ -18,7 +20,7 @@ class Config:
     whisper_model: str = "large-v3"
     hf_endpoint: str = "https://huggingface.co"
     # Audio & server
-    server_port: int = 9876
+    server_port: int = DEFAULT_SERVER_PORT
     sample_rate: int = 16000
     language: str = "zh"
     # Feedback sounds (System/Library/Sounds/<name>.aiff). Set SOUND_ENABLED=false to mute.
@@ -36,6 +38,8 @@ def _to_bool(value: str, default: bool = False) -> bool:
 
 def load_config(dotenv_path: Path | None = None) -> Config:
     """Load config from .env file (optional) and environment variables."""
+    from dotenv import load_dotenv
+
     if dotenv_path is None:
         dotenv_path = Path(__file__).resolve().parent.parent / ".env"
     if dotenv_path.exists():
@@ -56,7 +60,7 @@ def load_config(dotenv_path: Path | None = None) -> Config:
         stt_engine=os.getenv("STT_ENGINE", "qwen3-mlx"),
         whisper_model=os.getenv("WHISPER_MODEL", "large-v3"),
         hf_endpoint=hf_endpoint,
-        server_port=int(os.getenv("SERVER_PORT", "9876")),
+        server_port=int(os.getenv("SERVER_PORT", str(DEFAULT_SERVER_PORT))),
         sample_rate=int(os.getenv("SAMPLE_RATE", "16000")),
         language=os.getenv("LANGUAGE", "zh"),
         sound_enabled=_to_bool(os.getenv("SOUND_ENABLED", "true"), default=True),

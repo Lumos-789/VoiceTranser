@@ -1,6 +1,6 @@
 {
   "name": "voicetranser",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Fully local push-to-talk voice input for macOS: hold a global hotkey, speak, release — transcription is pasted at your cursor. Local-first STT (Qwen3-ASR MLX / SenseVoice / mlx-whisper), zero external APIs. This package ships the agent skill that installs, configures and troubleshoots the tool.",
   "type": "module",
   "main": "index.js",

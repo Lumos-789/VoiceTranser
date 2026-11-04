@@ -55,8 +55,10 @@ STT_ENGINE=mlx-whisper uv run python -m voicetranser  # 英文/小语种
 # 处理音频文件（不粘贴，对比引擎用）
 uv run python -m voicetranser --file recording.wav --no-paste
 
-# 8 项链路自检
-uv run python tests/diagnose.py
+# 8 项链路自检（音频检查有界，不会卡在系统授权框）
+.venv/bin/python tests/diagnose.py
+# 麦克风不能碰 / 不想弹权限框时跳过音频检查
+.venv/bin/python tests/diagnose.py --skip-audio
 ```
 
 ### 全局热键（推荐 Karabiner-Elements）

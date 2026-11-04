@@ -47,7 +47,7 @@ Fully local (zero external APIs). Repo: https://github.com/Lumos-789/VoiceTranse
    }
    ```
    No Karabiner? Raycast/Hammerspoon hitting `/toggle` works too.
-6. **Accessibility permission** (paste step needs it, grant once): System Settings → Privacy & Security → Accessibility → enable the terminal app. Then `uv run python tests/diagnose.py` — all 8 checks must pass.
+6. **Accessibility permission** (paste step needs it, grant once): System Settings → Privacy & Security → Accessibility → enable the terminal app. Then `.venv/bin/python tests/diagnose.py` — all 8 checks must pass. A skipped check (e.g. `--skip-audio`) keeps the exit code non-zero, so it can never masquerade as green.
 
 ## Troubleshoot (in order of likelihood)
 
@@ -56,7 +56,8 @@ Fully local (zero external APIs). Repo: https://github.com/Lumos-789/VoiceTranse
 - **Slow first transcription after boot** → model preload still running (cold load can take ~75 s); it is one-time per service start.
 - **Bad quality on specific words** → append a mapping to `corrections.json` (whole-word replace, applied post-transcription), restart service.
 - **GPU/memory concerns** → engine already caps MLX buffer cache at 1 GB; to fully avoid GPU use switch: `STT_ENGINE=sensevoice` (edit plist/`.env`, restart).
-- **Generic health** → `uv run python tests/diagnose.py` (8 checks: deps, models, mic, clipboard, service, logs…). Fix whatever it flags before guessing.
+- **Generic health** → `.venv/bin/python tests/diagnose.py` (8 checks: deps, models, mic, clipboard, service, logs…). Fix whatever it flags before guessing.
+- **Microphone off-limits / permission prompt risk** → never let a diagnostic wait on a TCC dialog: run `.venv/bin/python tests/diagnose.py --skip-audio`. The audio check only opens a stream after a non-prompting TCC status read reports *authorized*, and the probe itself is killed after 3 s.
 
 ## Switch engines
 

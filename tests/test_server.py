@@ -6,7 +6,7 @@ HALB_Mutex::Lock 内死锁，锁永不释放，/status 等所有端点全部挂�
 本测试用"慢 recorder"锁定该场景：慢 stop 期间 /status 必须立刻响应。
 
 运行:
-    uv run python tests/test_server.py
+    .venv/bin/python -m unittest discover -s tests -v
 """
 
 from __future__ import annotations

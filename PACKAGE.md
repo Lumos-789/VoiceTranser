@@ -90,7 +90,7 @@ idle ◄───────────────── recording ◄──�
 | `voicetranser/hotkey.py` | ⚠️ **已废弃**(pynput push-to-talk,被 HTTP server 取代,`pynput` 不在依赖里,别用) |
 | `download_model.py` | 下 SenseVoice 模型到 `models/sense-voice/`(hf-mirror 源,幂等) |
 | `com.voicetranser-sense.plist` | 作者本机示例,不要直接复制给其他用户;用 `install_launchd.py` 生成 |
-| `tests/diagnose.py` | 诊断脚本,逐层检查 8 项健康状态,支持 `--fix` 自动重启 |
+| `tests/diagnose.py` | 诊断脚本,逐层检查 8 项健康状态,支持 `--fix` 自动重启、`--skip-audio` 跳过麦克风 |
 | `VoiceTranser.app/` | .app bundle 壳(仅授权用,内部 `cd` 到项目目录跑 `python -m voicetranser`) |
 
 ---
@@ -401,17 +401,20 @@ tail -f ~/Library/Logs/VoiceTranser-sense.log                                   
 
 ## 11. 故障排查
 
-跑 `tests/diagnose.py` 一键体检 8 项(Python 依赖 / 进程 / HTTP / 音频设备 / 模型 / 剪贴板 / 外部工具 / 日志):
+跑 `.venv/bin/python tests/diagnose.py` 一键体检 8 项(Python 依赖 / 进程 / HTTP / 音频设备 / 模型 / 剪贴板 / 外部工具 / 日志):
 
 ```bash
-uv run python tests/diagnose.py          # 全量检查
-uv run python tests/diagnose.py --fix    # 检查 + 自动重启修复
+.venv/bin/python tests/diagnose.py                  # 全量检查（端口按应用配置解析）
+.venv/bin/python tests/diagnose.py --skip-audio     # 跳过音频（麦克风不能碰时的逃生口）
+.venv/bin/python tests/diagnose.py --fix            # 检查 + 自动重启修复
 ```
 
-单元测试(纠正词表 / 服务器状态机 / 看门狗):
+音频检查先查 TCC 授权状态(只读，不弹授权框)，未授权绝不打开输入流；已授权才在子进程开流并硬超时 3s，超时强杀。被跳过的检查在汇总里标为「跳过(未验证)」，退出码非 0，不会冒充全绿。HTTP 端口按应用配置解析(`--port` > `SERVER_PORT`/`.env` > 默认 9876)；launchd 实例在 plist 里设了别的端口时用 `--port` 指定。
+
+单元测试(纠正词表 / 诊断脚本 / 服务器状态机 / 看门狗):
 
 ```bash
-uv run python -m unittest discover tests -v
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
 ### 常见问题
