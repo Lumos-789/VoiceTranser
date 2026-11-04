@@ -13,7 +13,7 @@ Fully local (zero external APIs). Repo: https://github.com/Lumos-789/VoiceTranse
 - Target: macOS **Apple Silicon** (the default engine needs MLX/Metal; Intel Macs fall back to the CPU engine).
 - Stack: Python 3.11+ managed by **uv**; HTTP server (stdlib); launchd service; Karabiner-Elements hotkey.
 - Engines (`STT_ENGINE`): `qwen3-mlx` (default, Qwen3-ASR 0.6B 4bit via mlx-audio, RTF≈0.015, best zh quality, punctuated) → `sensevoice` (CPU fallback, RTF≈0.03) → `mlx-whisper` (en/exotic languages).
-- Port: **9877** by default (`config.DEFAULT_SERVER_PORT`). Diagnose resolves the instance that should be running: `--port` > `SERVER_PORT` env > installed launchd plist > project `.env` > default; it prints a WARNING when the plist and default disagree. If the mic is off-limits, use `--skip-audio`.
+- Port: **9877** is the single default (`config.DEFAULT_SERVER_PORT`; `server.py`, `install_launchd.py` and diagnose all derive from it). `SERVER_PORT` and the installed launchd plist override it. Diagnose resolves `--port` > env > launchd plist > `.env` > default and prints a WARNING when the plist disagrees with the default. If the mic is off-limits, use `--skip-audio`.
 - Model files: SenseVoice 228 MB via `download_model.py` (hf-mirror); Qwen3-ASR ~500 MB auto-fetched on first run (respects `HF_ENDPOINT`).
 
 ## Install flow (do these in order, verify each step)
@@ -32,9 +32,9 @@ Fully local (zero external APIs). Repo: https://github.com/Lumos-789/VoiceTranse
    curl -s localhost:9877/status   # expect {"status": "idle"}; model preloads in background
    ```
    `install_launchd.py` writes a per-user plist whose `ProgramArguments` and
-   `WorkingDirectory` point at this checkout, then loads it. Do not copy the
-   repository's `com.voicetranser-sense.plist`: that file contains the author's
-   local paths. Use `--port`, `--engine`, or `--no-load` when needed.
+   `WorkingDirectory` point at this checkout, then loads it — the repo ships no
+   plist snapshot, so there is nothing to copy. Use `--port`, `--engine`, or
+   `--no-load` when needed.
 5. **Hotkey — Karabiner-Elements** complex modification (user must have Karabiner installed; add to `~/.config/karabiner/karabiner.json` → `profiles[].complex_modifications.rules`, then enable in the Karabiner UI):
    ```json
    {
@@ -47,7 +47,7 @@ Fully local (zero external APIs). Repo: https://github.com/Lumos-789/VoiceTranse
    }
    ```
    No Karabiner? Raycast/Hammerspoon hitting `/toggle` works too.
-6. **Accessibility permission** (paste step needs it, grant once): System Settings → Privacy & Security → Accessibility → enable the terminal app. Then `.venv/bin/python tests/diagnose.py` — all 8 checks must pass. A skipped check (e.g. `--skip-audio`) keeps the exit code non-zero, so it can never masquerade as green.
+6. **Accessibility permission** (paste step needs it, grant once): System Settings → Privacy & Security → Accessibility → enable the terminal app. Then `.venv/bin/python tests/diagnose.py` — it must return a verdict within seconds: all 8 checks pass. The audio probe is bounded (3 s) and never prompts for the microphone; without permission it reports `microphone permission not granted`. A skipped check (e.g. `--skip-audio`) counts as *not fully verified* and keeps the exit code non-zero, so it can never masquerade as green.
 
 ## Troubleshoot (in order of likelihood)
 
