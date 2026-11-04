@@ -36,3 +36,18 @@
   `README.md` / `PACKAGE.md` / skill 补充端口解析顺序与 `--skip-audio` 用法。
 - 版本号统一：`pyproject.toml` 0.1.0、`voicetranser/__init__.py` 0.1.0、
   `package.json` 1.0.1 → 全部 1.0.2（`uv.lock` 同步）。
+
+### 精简
+
+- **删除 `com.voicetranser-sense.plist`**：作者本机路径快照，无任何代码引用
+  （`install_launchd.py` 按当前 checkout 生成），照抄会给用户装出指向别人目录的服务。
+- **删除 `voicetranser/hotkey.py`**：pynput push-to-talk 时代的死模块，全仓零引用、
+  `pynput` 早已不在依赖里，两份文档各写一行「已废弃别用」。
+- **`PACKAGE.md`（466 行）拆解**：其中的用户手册部分（安装 5 步、跑起来、热键三方案、
+  开机自启、HTTP 速查、技术栈）与 `README.md` / skill 逐段重复，删掉；只保留唯一
+  独有的架构图、状态机与模块职责表，移到 `docs/architecture.md`。README 补上原先只在
+  PACKAGE 里有的「故障排查」与「卸载」，并明确单元测试命令。
+- **`AGENTS.md` 收窄到项目事实**：本机实例状态、老实例收尾迁移到本地 `.agents/`
+  （已加进 `.gitignore`）；架构图补上默认引擎 qwen3-mlx（原先只写 sense/whisper）。
+- `.env.example` 的 `SERVER_PORT` 示例从 9876 改为 9877（与端口单一事实源一致）；
+  移除误提交的 `.DS_Store`。

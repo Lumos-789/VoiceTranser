@@ -37,9 +37,9 @@ class TestVersionMetadata(unittest.TestCase):
         self.assertIn(f"## {__version__}", changelog)
 
     def test_documented_test_command_is_the_working_one(self) -> None:
-        package_doc = (ROOT / "PACKAGE.md").read_text(encoding="utf-8")
-        self.assertIn(".venv/bin/python -m unittest discover -s tests -v", package_doc)
-        self.assertNotIn("uv run python -m unittest", package_doc)
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn(".venv/bin/python -m unittest discover -s tests -v", readme)
+        self.assertNotIn("uv run python -m unittest", readme)
 
 
 if __name__ == "__main__":

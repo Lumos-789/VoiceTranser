@@ -14,24 +14,22 @@
 
 引擎由 `STT_ENGINE` 环境变量切换：`qwen3-mlx`(默认)/ `sensevoice` / `mlx-whisper`。launchd plist 显式设了 `STT_ENGINE=qwen3-mlx`(优先于 .env)。
 
-## 当前实例（2026-11-01 引擎切换）
+## 常驻服务
 
-| 实例 | launchd Label | 端口 | 引擎 | 热键 | 状态 |
-|------|---------------|------|------|------|------|
-| 主力 | `com.voicetranser-sense` | 9877 | qwen3-mlx | `right_option` 按下录/松开停 | ✅ 已 load，开机自启 + KeepAlive |
+`install_launchd.py` 按**当前 checkout** 生成 per-user plist（`ProgramArguments` / `WorkingDirectory` 指向本目录）并 load，标签 `com.voicetranser-sense`，默认端口 9877、引擎 qwen3-mlx。仓库**不再保存** plist 快照——那份快照带作者本机路径，照抄会装出指向别人目录的服务，排障时按这个顺序找异常件。
 
-注：label 沿用旧名 `-sense`（2026-07 sense 转正时命名），2026-11-01 换 qwen3-mlx 引擎时未改 label，避免动 launchd/日志链路；回退引擎只改 plist/env 的 `STT_ENGINE` 重启即换。服务启动时后台线程预热模型（qwen3-mlx 缓存命中后加载仅数秒；首次冷加载 ~75s）。
+```bash
+uv run python install_launchd.py            # 写并 load
+uv run python install_launchd.py --no-load  # 只写
+uv run python install_launchd.py --dry-run  # 只打印
+```
 
-热键由 Karabiner-Elements complex_modifications 配置：`right_option` 按下 → `curl localhost:9877/start`，松开 → `curl localhost:9877/stop`（见 `~/.config/karabiner/karabiner.json`）。
-
-主力 plist：`com.voicetranser-sense.plist`(项目根)，同步装到 `~/Library/LaunchAgents/`，日志 `~/Library/Logs/VoiceTranser-sense.log`。**路径已修正为 `/Users/black-wood/IdeaProjects/myProjects/VoiceTranser`**（之前写错少一层 `myProjects`，导致重启后 launchd 找不到 python、`EX_CONFIG` 反复崩）。
-
-**老实例收尾（2026-08-23 完成）**：已删旧的 LaunchAgents plist（com.voicetranser.plist，位于 `~/Library/LaunchAgents/`，已移除）并 bootout（其路径仍指向旧 `/IdeaProjects/VoiceTranser`，每次开机以 exit 78 空转）；`.env` 去掉 `STT_ENGINE=mlx-whisper` 锁定；Karabiner 删 `right_command`→9876 规则（删前备份 `.zcode/tmp/karabiner.json.bak-20260823`）。如需恢复 mlx-whisper：改用 `STT_ENGINE=mlx-whisper` 起新实例或临时命令行运行。
+热键走 Karabiner-Elements complex_modifications（`right_option` 按下 → `curl localhost:9877/start`，松开 → `curl localhost:9877/stop`），不依赖进程内监听器。
 
 ## 架构
 
 ```
-External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (sensevoice/mlx-whisper) → Output (clipboard + paste)
+External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (qwen3-mlx / sensevoice / mlx-whisper) → Output (clipboard + paste)
 ```
 
 ## 技术栈
@@ -56,8 +54,6 @@ External Hotkey → HTTP /toggle → Recorder (sounddevice) → Transcriber (sen
 | `voicetranser/__main__.py` | CLI 入口(守护 / 单次 / 文件处理) |
 | `corrections.json` | 误识词纠正词表(用户可编辑，日常发现新误识加一行即可) |
 | `download_model.py` | 下 SenseVoice 模型到 `models/sense-voice/`(hf-mirror 源，幂等)；qwen3-mlx 模型由 mlx-audio 首次运行自动拉取(HF_ENDPOINT=hf-mirror) |
-| `com.voicetranser-sense.plist` | launchd 配置(端口 9877 + qwen3-mlx) |
-| `voicetranser/hotkey.py` | 已废弃(pynput push-to-talk，被 HTTP server 取代，pynput 不在依赖) |
 
 ## 配置
 

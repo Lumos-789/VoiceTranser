@@ -80,6 +80,23 @@ curl -s localhost:9877/status
 
 首次使用需要授予终端辅助功能权限：**系统设置 → 隐私与安全性 → 辅助功能** → 勾选你的终端应用（自动粘贴所必需）。
 
+### 测试与自检
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v   # 单元测试
+.venv/bin/python tests/diagnose.py --fix            # 8 项体检 + 自动重启修复
+```
+
+## 故障排查
+
+先跑 `tests/diagnose.py`，它会把上面这些一次性查完，别凭现象猜。
+
+- **转写成功但不自动粘贴** → 辅助功能权限没授。launchd 启动的实例要单独授一次（列表里会出现 `python` 条目）。
+- **curl 连接被拒** → 服务没起来。`tail -f ~/Library/Logs/VoiceTranser-sense.log`；常见是端口被占（改 `SERVER_PORT`）或模型没下（跑 `download_model.py`）。
+- **录到空白** → 麦克风权限没授。
+- **launchd 反复崩** → 99% 是 plist 里路径写错。重跑 `install_launchd.py` 让它按当前 checkout 重新生成。
+- **音频报错 `-9986` / PortAudio 异常** → 休眠后音频子系统损坏或蓝牙耳机切换。看门狗会在 5s 超时后自杀重启，多数无感自愈；连续失败时 `launchctl kickstart -k gui/$(id -u)/com.voicetranser-sense`。
+
 ## HTTP 端点
 
 守护模式启动后监听 `http://127.0.0.1:9877`（默认；`SERVER_PORT` 可覆盖）：
@@ -111,6 +128,17 @@ curl -s localhost:9877/status
 ## 作为 DSH 插件使用
 
 本仓同时是 [DSH](https://github.com/deepseek-ai) 插件（`dsh.bundle` 已声明）：安装后 agent 获得 voicetranser 技能，可代你完成安装、launchd 配置、Karabiner 热键配置与排障。
+
+## 卸载
+
+```bash
+launchctl bootout gui/$(id -u)/com.voicetranser-sense
+rm ~/Library/LaunchAgents/com.voicetranser-sense.plist
+rm -rf ~/VoiceTranser                      # 项目目录
+rm ~/Library/Logs/VoiceTranser-sense.log
+```
+
+再到系统设置里移除辅助功能 / 麦克风权限中的相关条目。
 
 ## License
 

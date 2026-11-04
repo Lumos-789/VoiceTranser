@@ -6,3 +6,5 @@ models/
 
 # ZCode 本地工作区（wiki/plans/scripts/tmp），永不提交
 .zcode/
+.agents/
+.DS_Store
